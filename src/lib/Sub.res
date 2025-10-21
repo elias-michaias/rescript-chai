@@ -1,5 +1,3 @@
-open Connection.Manager
-
 type subscription<'msg> = {
   start: ('msg => unit) => (unit => unit),
 }
@@ -19,16 +17,16 @@ module WebSocket = {
 
   let listen = (_url, cons) => {
     start: dispatch => {
-      let conn = getOrCreateConnection(_url)
-      let messageHandler = (event: WebSocket.messageEvent) => {
+      let conn = Connection.Manager.getOrCreateConnection(_url)
+      let messageHandler = (event: WebSocket_.messageEvent) => {
         dispatch(cons(event.data))
       }
-      conn.ws->WebSocket.set_onmessage(messageHandler)
+      conn.ws->WebSocket_.set_onmessage(messageHandler)
 
       // Return cleanup function
       () => {
         // Clear the message handler
-        conn.ws->WebSocket.set_onmessage(_ => ())
+        conn.ws->WebSocket_.set_onmessage(_ => ())
         // Don't close the connection here - let the manager handle it
       }
     }

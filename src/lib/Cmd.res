@@ -24,14 +24,25 @@ module Batch = {
     }
 }
 
-module Delay = {
-  type t<'msg> = {
-    ms: int,
-    msg: 'msg
+module Time = {
+  module Delay = {
+    type t<'msg> = {
+      ms: int,
+      msg: 'msg
+    }
+    let run = async (cmd, dispatch) => {
+      let _timeoutId = setTimeout(() => dispatch(cmd.msg), cmd.ms)
+      ()
+    }
   }
-  let run = async (cmd, dispatch) => {
-    let _timeoutId = setTimeout(() => dispatch(cmd.msg), cmd.ms)
-    ()
+  module Now = {
+    type t<'msg> = {
+      cons: float => 'msg,
+    }
+    let run = async (cmd, dispatch) => {
+      dispatch(cmd.cons(Date.now()))
+      ()
+    }
   }
 }
 
@@ -54,7 +65,7 @@ module Http = {
     }
 }
 
-module Storage = {
+module LocalStorage = {
   module Get = {
     type t<'msg> = {
       key: string,
@@ -118,6 +129,150 @@ module Storage = {
   }
 }
 
+module IndexedDB = {
+
+  let contains = (list, str) => list->Array.some(item => item == str)
+
+  module Get = {
+    type t<'msg> = {
+      db: string,
+      store: string,
+      key: string,
+      cons: option<string> => 'msg,
+    }
+
+    let run = async (cmd, dispatch) => {
+      try {
+        let openRequest = IndexedDB_.indexedDB->IndexedDB_.open_(cmd.db, 1)
+        openRequest->IndexedDB_.set_onupgradeneeded((event) => {
+          let db = (event["target"] :> IndexedDB_.openRequest)->IndexedDB_.openRequestResult
+          if !(db->IndexedDB_.objectStoreNames->contains("keyvalue")) {
+            let _ = db->IndexedDB_.createObjectStore(cmd.store)
+          }
+        })
+        let db = await Js.Promise.make((~resolve, ~reject) => {
+          openRequest->IndexedDB_.set_onsuccess_open((event) => resolve(. (event["target"] :> IndexedDB_.openRequest)->IndexedDB_.openRequestResult))
+          openRequest->IndexedDB_.set_onerror_open((event) => reject(. (event["target"] :> IndexedDB_.openRequest)->IndexedDB_.openRequestError))
+        })
+        let transaction = db->IndexedDB_.transaction(cmd.store, "readonly")
+        let store = transaction->IndexedDB_.objectStore(cmd.store)
+        let getRequest = store->IndexedDB_.get(cmd.key)
+        let value = await Js.Promise.make((~resolve, ~reject) => {
+          getRequest->IndexedDB_.set_onsuccess((event) => resolve(. (event["target"] :> IndexedDB_.request)->IndexedDB_.requestResult))
+          getRequest->IndexedDB_.set_onerror((event) => reject(. (event["target"] :> IndexedDB_.request)->IndexedDB_.requestError))
+        })
+        let result = value
+        let msg = cmd.cons(result)
+        dispatch(msg)
+      } catch {
+      | _ => {
+          let msg = cmd.cons(None)
+          dispatch(msg)
+        }
+      }
+    }
+  }
+
+  module Set = {
+    type t = {
+      db: string,
+      store: string,
+      key: string,
+      value: string,
+    }
+
+    let run = async (cmd, _dispatch) => {
+      try {
+        let openRequest = IndexedDB_.indexedDB->IndexedDB_.open_(cmd.db, 1)
+        openRequest->IndexedDB_.set_onupgradeneeded((event) => {
+          let db = (event["target"] :> IndexedDB_.openRequest)->IndexedDB_.openRequestResult
+          if !(db->IndexedDB_.objectStoreNames->contains(cmd.store)) {
+            let _ = db->IndexedDB_.createObjectStore(cmd.store)
+          }
+        })
+        let db = await Js.Promise.make((~resolve, ~reject) => {
+          openRequest->IndexedDB_.set_onsuccess_open((event) => resolve(. (event["target"] :> IndexedDB_.openRequest)->IndexedDB_.openRequestResult))
+          openRequest->IndexedDB_.set_onerror_open((event) => reject(. (event["target"] :> IndexedDB_.openRequest)->IndexedDB_.openRequestError))
+        })
+        let transaction = db->IndexedDB_.transaction(cmd.store, "readwrite")
+        let store = transaction->IndexedDB_.objectStore(cmd.store)
+        let _ = store->IndexedDB_.put(cmd.value, cmd.key)
+        await Js.Promise.make((~resolve, ~reject) => {
+          transaction->IndexedDB_.set_oncomplete((_event) => resolve(. ()))
+          transaction->IndexedDB_.set_onerror_transaction((event) => reject(. (event["target"] :> IndexedDB_.idbTransaction)->IndexedDB_.transactionError))
+        })
+      } catch {
+      | _ => ()
+      }
+    }
+  }
+
+  module Remove = {
+    type t = {
+      db: string,
+      store: string,
+      key: string,
+    }
+
+    let run = async (cmd, _dispatch) => {
+      try {
+        let openRequest = IndexedDB_.indexedDB->IndexedDB_.open_(cmd.db, 1)
+        openRequest->IndexedDB_.set_onupgradeneeded((event) => {
+          let db = (event["target"] :> IndexedDB_.openRequest)->IndexedDB_.openRequestResult
+          if !(db->IndexedDB_.objectStoreNames->contains(cmd.store)) {
+            let _ = db->IndexedDB_.createObjectStore(cmd.store)
+          }
+        })
+        let db = await Js.Promise.make((~resolve, ~reject) => {
+          openRequest->IndexedDB_.set_onsuccess_open((event) => resolve(. (event["target"] :> IndexedDB_.openRequest)->IndexedDB_.openRequestResult))
+          openRequest->IndexedDB_.set_onerror_open((event) => reject(. (event["target"] :> IndexedDB_.openRequest)->IndexedDB_.openRequestError))
+        })
+        let transaction = db->IndexedDB_.transaction(cmd.store, "readwrite")
+        let store = transaction->IndexedDB_.objectStore(cmd.store)
+        let _ = store->IndexedDB_.delete(cmd.key)
+        await Js.Promise.make((~resolve, ~reject) => {
+          transaction->IndexedDB_.set_oncomplete((_event) => resolve(. ()))
+          transaction->IndexedDB_.set_onerror_transaction((event) => reject(. (event["target"] :> IndexedDB_.idbTransaction)->IndexedDB_.transactionError))
+        })
+      } catch {
+      | _ => ()
+      }
+    }
+  }
+
+  module Clear = {
+    type t = {
+      db: string,
+      store: string,
+    }
+
+    let run = async (cmd, _dispatch) => {
+      try {
+        let openRequest = IndexedDB_.indexedDB->IndexedDB_.open_(cmd.db, 1)
+        openRequest->IndexedDB_.set_onupgradeneeded((event) => {
+          let db = (event["target"] :> IndexedDB_.openRequest)->IndexedDB_.openRequestResult
+          if !(db->IndexedDB_.objectStoreNames->contains(cmd.store)) {
+            let _ = db->IndexedDB_.createObjectStore(cmd.store)
+          }
+        })
+        let db = await Js.Promise.make((~resolve, ~reject) => {
+          openRequest->IndexedDB_.set_onsuccess_open((event) => resolve(. (event["target"] :> IndexedDB_.openRequest)->IndexedDB_.openRequestResult))
+          openRequest->IndexedDB_.set_onerror_open((event) => reject(. (event["target"] :> IndexedDB_.openRequest)->IndexedDB_.openRequestError))
+        })
+        let transaction = db->IndexedDB_.transaction(cmd.store, "readwrite")
+        let store = transaction->IndexedDB_.objectStore(cmd.store)
+        let _ = IndexedDB_.clear(store)
+        await Js.Promise.make((~resolve, ~reject) => {
+          transaction->IndexedDB_.set_oncomplete((_event) => resolve(. ()))
+          transaction->IndexedDB_.set_onerror_transaction((event) => reject(. event["target"]->IndexedDB_.transactionError))
+        })
+      } catch {
+      | _ => ()
+      }
+    }
+  }
+}
+
 module WebSocket = {
     type t = {
         url: string,
@@ -127,15 +282,15 @@ module WebSocket = {
         let conn = Connection.Manager.getOrCreateConnection(cmd.url)
         let onOpen = () => {
             let jsonString = Js.Json.stringify(cmd.data)
-            conn.ws->WebSocket.send(jsonString)
+            conn.ws->WebSocket_.send(jsonString)
             // Don't close the connection - let it stay open for subscriptions
         }
         // If already connected, send immediately
         if conn.isConnected {
             let jsonString = Js.Json.stringify(cmd.data)
-            conn.ws->WebSocket.send(jsonString)
+            conn.ws->WebSocket_.send(jsonString)
         } else {
-            conn.ws->WebSocket.addEventListener("open", onOpen)
+            conn.ws->WebSocket_.addEventListener("open", onOpen)
         }
     }
 }

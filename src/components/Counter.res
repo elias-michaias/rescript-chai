@@ -13,16 +13,20 @@ type msg =
     | Response(string)
     | SaveCount(int)
     | LoadCount
+    | SaveCountIDB(int)
+    | LoadCountIDB
     | SendWebSocketData(Js.Json.t)
 
 type rec cmd =
     | NoOp
     | Batch(Cmd.Batch.t<cmd>)
-    | Delay(Cmd.Delay.t<msg>)
+    | Delay(Cmd.Time.Delay.t<msg>)
     | Http(Cmd.Http.t<msg>)
     | Log(Cmd.Log.t)
-    | StorageSet(Cmd.Storage.Set.t)
-    | StorageGet(Cmd.Storage.Get.t<msg>)
+    | StorageSet(Cmd.LocalStorage.Set.t)
+    | StorageGet(Cmd.LocalStorage.Get.t<msg>)
+    | IDBSet(Cmd.IndexedDB.Set.t)
+    | IDBGet(Cmd.IndexedDB.Get.t<msg>)
     | WebSocket(Cmd.WebSocket.t)
 
 let update = (model, msg) => switch msg {
@@ -65,6 +69,26 @@ let update = (model, msg) => switch msg {
                 ->Set
         })
     )
+    | SaveCountIDB(n) => (
+        model,
+        IDBSet({
+            db: "app",
+            store: "counter",
+            key: "count",
+            value: string_of_int(n),
+        })
+    )
+    | LoadCountIDB => (
+        model,
+        IDBGet({
+            db: "app",
+            store: "counter",
+            key: "count",
+            cons: r => r
+                ->Option.map(x => int_of_string(x))
+                ->Set
+        })
+    )
     | SendWebSocketData(data) => (
         model,
         WebSocket({
@@ -78,10 +102,12 @@ let rec run = async (cmd, dispatch) => switch cmd {
     | NoOp => ()
     | Batch(c) => await c->Cmd.Batch.run(dispatch, run)
     | Log(c) => await c->Cmd.Log.run
-    | Delay(c) => await c->Cmd.Delay.run(dispatch)
+    | Delay(c) => await c->Cmd.Time.Delay.run(dispatch)
     | Http(c) => await c->Cmd.Http.run(dispatch)
-    | StorageSet(c) => await c->Cmd.Storage.Set.run(dispatch)
-    | StorageGet(c) => await c->Cmd.Storage.Get.run(dispatch)
+    | StorageSet(c) => await c->Cmd.LocalStorage.Set.run(dispatch)
+    | StorageGet(c) => await c->Cmd.LocalStorage.Get.run(dispatch)
+    | IDBSet(c) => await c->Cmd.IndexedDB.Set.run(dispatch)
+    | IDBGet(c) => await c->Cmd.IndexedDB.Get.run(dispatch)
     | WebSocket(c) => await c->Cmd.WebSocket.run(dispatch)
 
 }
@@ -132,14 +158,22 @@ let make = (~count=0) => {
             <Button onClick={_ => SetLogCount(10)->dispatch}>
                 {React.string("Set count to 10 and log")}
             </Button>
+            <Button onClick={_ => SendWebSocketData(Js.Json.string("Boop"))->dispatch}>
+                {React.string("Send WebSocket Message")}
+            </Button>
+        </div>
+        <div className="flex flex-wrap">
             <Button onClick={_ => SaveCount(model.count)->dispatch}>
                 {React.string("Save count to storage")}
             </Button>
             <Button onClick={_ => LoadCount->dispatch}>
                 {React.string("Load count from storage")}
             </Button>
-            <Button onClick={_ => SendWebSocketData(Js.Json.string("Boop"))->dispatch}>
-                {React.string("Send WebSocket Message")}
+            <Button onClick={_ => SaveCountIDB(model.count)->dispatch}>
+                {React.string("Save count to IndexedDB")}
+            </Button>
+            <Button onClick={_ => LoadCountIDB->dispatch}>
+                {React.string("Load count from IndexedDB")}
             </Button>
         </div>
     </div>

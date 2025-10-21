@@ -1,6 +1,6 @@
 module Manager = {
   type connection = {
-    ws: WebSocket.t,
+    ws: WebSocket_.t,
     mutable isConnected: bool,
   }
 
@@ -20,7 +20,7 @@ module Manager = {
   }
 
   let createConnection = (url: string): connection => {
-    let ws = WebSocket.new_(url)
+    let ws = WebSocket_.new_(url)
     let conn = { ws: ws, isConnected: false }
 
     let onOpen = () => {
@@ -37,9 +37,9 @@ module Manager = {
       // Keep connection in dictionary for potential reuse
     }
 
-    ws->WebSocket.set_onopen(onOpen)
-    ws->WebSocket.set_onclose(onClose)
-    ws->WebSocket.set_onerror(onError)
+    ws->WebSocket_.set_onopen(onOpen)
+    ws->WebSocket_.set_onclose(onClose)
+    ws->WebSocket_.set_onerror(onError)
 
     setConnection(url, conn)
     conn
