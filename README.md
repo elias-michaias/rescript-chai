@@ -1,7 +1,7 @@
 # Chai
 
 <div style="display: flex; align-items: center; gap: 2rem; margin-bottom: 2rem;">
-  <img src="./chai.png" alt="logo" style="width: 200px; flex-shrink: 0;" />
+  <img src="./chai.png" alt="logo" style="width: 200px; height: auto; flex-shrink: 0; display: block; flex-shrink: 0; object-fit: contain;" />
   <div>
     <h2><code>rescript-chai</code></h2>
     <p>
