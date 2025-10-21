@@ -99,7 +99,6 @@ module Spec = {
         )
     }
 
-
     let subs = (_model) => [
         Sub.WebSocket.listen("wss://echo.websocket.org", s => Response("WS Message: " ++ s))
     ]
