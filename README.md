@@ -1,14 +1,18 @@
 # Chai
 
-<div style="display: flex; align-items: center; gap: 2rem; margin-bottom: 2rem;">
-  <img src="./chai.png" alt="logo" style="width: 200px; height: auto; flex-shrink: 0; display: block; flex-shrink: 0; object-fit: contain;" />
-  <div>
-    <h2><code>rescript-chai</code></h2>
-    <p>
-    <a href="https://github.com/elias-michaias/rescript-chai">Chai</a> is an implementation of <a href="https://guide.elm-lang.org/architecture/">The Elm Architecture</a> (TEA) in <a href="https://rescript-lang.org/">ReScript</a> - built on <a href="https://react.dev/">React</a>. Chai wants to make the React ecosystem accessible to the Model-View-Update paradigm, without sacrificing on the comforts you're used to.
-    </p>
-  </div>
-</div>
+<table style="border: none; border-collapse: collapse;">
+  <tr style="border: none;">
+    <td style="border: none; vertical-align: top; padding-right: 2rem;">
+      <img src="./chai.png" alt="logo" style="width: 200px; height: auto;" />
+    </td>
+    <td style="border: none; vertical-align: top;">
+      <h2><code>rescript-chai</code></h2>
+      <p>
+      <a href="https://github.com/elias-michaias/rescript-chai">Chai</a> is an implementation of <a href="https://guide.elm-lang.org/architecture/">The Elm Architecture</a> (TEA) in <a href="https://rescript-lang.org/">ReScript</a> - built on <a href="https://react.dev/">React</a>. Chai wants to make the React ecosystem accessible to the Model-View-Update paradigm, without sacrificing on the comforts you're used to.
+      </p>
+    </td>
+  </tr>
+</table>
 
 >[!WARNING]
 >Chai is an experimental project and is in the very early stages of development.
