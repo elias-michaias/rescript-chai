@@ -9,10 +9,10 @@
   "package-specs": [
     {
       "module": "esmodule",
-      "in-source": true
+      "in-source": false
     }
   ],
-  "suffix": ".res.mjs",
+  "suffix": ".bs.js",
   "bs-dependencies": [
     "@rescript/core",
     "@rescript/react",
