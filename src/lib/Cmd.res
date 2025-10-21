@@ -292,3 +292,34 @@ module WebSocket = {
         }
     }
 }
+
+module type HasCmd = {
+  type msg
+
+  type rec cmd = 
+    | NoOp
+    | Batch(Batch.t<cmd>)
+    | Log(Log.t)
+    | Delay(Time.Delay.t<msg>)
+    | Http(Http.t<msg>)
+    | StorageSet(LocalStorage.Set.t)
+    | StorageGet(LocalStorage.Get.t<msg>)
+    | IndexedDBSet(IndexedDB.Set.t)
+    | IndexedDBGet(IndexedDB.Get.t<msg>)
+    | WebSocket(WebSocket.t)
+}
+
+module Default = (R: HasCmd) => {
+  let rec run = async (cmd: R.cmd, dispatch: 'msg => unit) => switch cmd {
+      | R.NoOp => ()
+      | R.Batch(c) => await c->Batch.run(dispatch, run)
+      | R.Log(c) => await c->Log.run
+      | R.Delay(c) => await c->Time.Delay.run(dispatch)
+      | R.Http(c) => await c->Http.run(dispatch)
+      | R.StorageSet(c) => await c->LocalStorage.Set.run(dispatch)
+      | R.StorageGet(c) => await c->LocalStorage.Get.run(dispatch)
+      | R.IndexedDBSet(c) => await c->IndexedDB.Set.run(dispatch)
+      | R.IndexedDBGet(c) => await c->IndexedDB.Get.run(dispatch)
+      | R.WebSocket(c) => await c->WebSocket.run(dispatch)
+  }
+}

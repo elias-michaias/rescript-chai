@@ -1,8 +1,8 @@
 type config<'model, 'msg, 'cmd> = {
     update: ('model, 'msg) => ('model, 'cmd),
-    run?: ('cmd, 'msg => unit) => promise<unit>,
     init: ('model, 'cmd),
-    subscriptions?: 'model => array<Sub.subscription<'msg>>,
+    subs?: 'model => array<Sub.subscription<'msg>>,
+    run?: ('cmd, 'msg => unit) => promise<unit>,
 }
 
 let useKettle = (config): (
@@ -26,7 +26,7 @@ let useKettle = (config): (
     }
 
     // Handle subscriptions
-    switch config.subscriptions {
+    switch config.subs {
         | Some(subsFn) => {
             React.useEffect(() => {
                 let subscriptions = subsFn(model)

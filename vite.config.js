@@ -7,9 +7,7 @@ import rescript from "@jihchi/vite-plugin-rescript";
 export default defineConfig({
   plugins: [
     tailwindcss(),
-    react({
-      include: ["**/*.res.mjs"],
-    }),
+    react(),
     rescript()
   ],
 });

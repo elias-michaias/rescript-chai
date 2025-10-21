@@ -1,129 +1,110 @@
 open Fetch
 
-type model = {
-    count: int,
-    title: string,
-}
-
-type msg =
-    | Increment
-    | Set(option<int>)
-    | SetAfterDelay(int, int)
-    | SetLogCount(int)
-    | Response(string)
-    | SaveCount(int)
-    | LoadCount
-    | SaveCountIDB(int)
-    | LoadCountIDB
-    | SendWebSocketData(Js.Json.t)
-
-type rec cmd =
-    | NoOp
-    | Batch(Cmd.Batch.t<cmd>)
-    | Delay(Cmd.Time.Delay.t<msg>)
-    | Http(Cmd.Http.t<msg>)
-    | Log(Cmd.Log.t)
-    | StorageSet(Cmd.LocalStorage.Set.t)
-    | StorageGet(Cmd.LocalStorage.Get.t<msg>)
-    | IDBSet(Cmd.IndexedDB.Set.t)
-    | IDBGet(Cmd.IndexedDB.Get.t<msg>)
-    | WebSocket(Cmd.WebSocket.t)
-
-let update = (model, msg) => switch msg {
-    | Increment => (
-        { ...model, count: model.count + 1 }, 
-        NoOp
-    )
-    | Set(Some(n)) => (
-        { ...model, count: n }, 
-        NoOp
-    )
-    | Set(None) => (
-        model,
-        NoOp
-    )
-    | SetAfterDelay(ms, n) => (
-        model, 
-        Delay({ msg: Some(n)->Set, ms: ms })  
-    )
-    | SetLogCount(n) => (
-        { ...model, count: n },
-        Log("Setting count to " ++ string_of_int(n)),
-    )
-    | Response(res) => {
-        ({ ...model, title: res }, NoOp)
+module Spec = {
+    type model = {
+        count: int,
+        title: string,
     }
-    | SaveCount(n) => (
-        model,
-        StorageSet({
-            key: "count",
-            value: string_of_int(n),
-        })
-    )
-    | LoadCount => (
-        model,
-        StorageGet({
-            key: "count",
-            cons: r => r
-                ->Option.map(x => int_of_string(x))
-                ->Set
-        })
-    )
-    | SaveCountIDB(n) => (
-        model,
-        IDBSet({
-            db: "app",
-            store: "counter",
-            key: "count",
-            value: string_of_int(n),
-        })
-    )
-    | LoadCountIDB => (
-        model,
-        IDBGet({
-            db: "app",
-            store: "counter",
-            key: "count",
-            cons: r => r
-                ->Option.map(x => int_of_string(x))
-                ->Set
-        })
-    )
-    | SendWebSocketData(data) => (
-        model,
-        WebSocket({
-            url: "wss://echo.websocket.org",
-            data: data,
-        })
-    )
-}
 
-let rec run = async (cmd, dispatch) => switch cmd {
-    | NoOp => ()
-    | Batch(c) => await c->Cmd.Batch.run(dispatch, run)
-    | Log(c) => await c->Cmd.Log.run
-    | Delay(c) => await c->Cmd.Time.Delay.run(dispatch)
-    | Http(c) => await c->Cmd.Http.run(dispatch)
-    | StorageSet(c) => await c->Cmd.LocalStorage.Set.run(dispatch)
-    | StorageGet(c) => await c->Cmd.LocalStorage.Get.run(dispatch)
-    | IDBSet(c) => await c->Cmd.IndexedDB.Set.run(dispatch)
-    | IDBGet(c) => await c->Cmd.IndexedDB.Get.run(dispatch)
-    | WebSocket(c) => await c->Cmd.WebSocket.run(dispatch)
+    type msg =
+        | Increment
+        | Set(option<int>)
+        | SetAfterDelay(int, int)
+        | SetLogCount(int)
+        | Response(string)
+        | SaveCount(int)
+        | LoadCount
+        | SaveCountIDB(int)
+        | LoadCountIDB
+        | SendWebSocketData(Js.Json.t)
 
-}
+    type rec cmd = 
+        | NoOp
+        | Batch(Cmd.Batch.t<cmd>)
+        | Log(Cmd.Log.t)
+        | Delay(Cmd.Time.Delay.t<msg>)
+        | Http(Cmd.Http.t<msg>)
+        | StorageSet(Cmd.LocalStorage.Set.t)
+        | StorageGet(Cmd.LocalStorage.Get.t<msg>)
+        | IndexedDBSet(Cmd.IndexedDB.Set.t)
+        | IndexedDBGet(Cmd.IndexedDB.Get.t<msg>)
+        | WebSocket(Cmd.WebSocket.t)
 
-let subs = (_model) => [
-    Sub.WebSocket.listen("wss://echo.websocket.org", s => Response("WS Message: " ++ s))
-]
+    let update = (model, msg) => switch msg {
+        | Increment => (
+            { ...model, count: model.count + 1 }, 
+            NoOp
+        )
+        | Set(Some(n)) => (
+            { ...model, count: n }, 
+            NoOp
+        )
+        | Set(None) => (
+            model,
+            NoOp
+        )
+        | SetAfterDelay(ms, n) => (
+            model, 
+            Delay({ msg: Some(n)->Set, ms: ms })  
+        )
+        | SetLogCount(n) => (
+            { ...model, count: n },
+            Log("Setting count to " ++ string_of_int(n)),
+        )
+        | Response(res) => {
+            ({ ...model, title: res }, NoOp)
+        }
+        | SaveCount(n) => (
+            model,
+            StorageSet({
+                key: "count",
+                value: string_of_int(n),
+            })
+        )
+        | LoadCount => (
+            model,
+            StorageGet({
+                key: "count",
+                cons: r => r
+                    ->Option.map(x => int_of_string(x))
+                    ->Set
+            })
+        )
+        | SaveCountIDB(n) => (
+            model,
+            IndexedDBSet({
+                db: "app",
+                store: "counter",
+                key: "count",
+                value: string_of_int(n),
+            })
+        )
+        | LoadCountIDB => (
+            model,
+            IndexedDBGet({
+                db: "app",
+                store: "counter",
+                key: "count",
+                cons: r => r
+                    ->Option.map(x => int_of_string(x))
+                    ->Set
+            })
+        )
+        | SendWebSocketData(data) => (
+            model,
+            WebSocket({
+                url: "wss://echo.websocket.org",
+                data: data,
+            })
+        )
+    }
 
-@react.component
-let make = (~count=0) => {
+    let subs = (_model) => [
+        Sub.WebSocket.listen("wss://echo.websocket.org", s => Response("WS Message: " ++ s))
+    ]
 
-    let (model, dispatch) = Chai.useKettle({ 
-        update: update, 
-        run: run, 
-        subscriptions: subs,
-        init: ({
+    let init = (count) => {
+        ({
             count: count,
             title: "Counter Component",
         }, 
@@ -139,6 +120,19 @@ let make = (~count=0) => {
                 })
             ])
         )
+    }
+}
+
+module Runner = Cmd.Default(Spec)
+
+@react.component
+let make = (~count=0) => {
+
+    let (model, dispatch) = Chai.useKettle({ 
+        update: Spec.update, 
+        subs: Spec.subs,
+        init: Spec.init(count),
+        run: Runner.run, 
     })
 
     <div>
