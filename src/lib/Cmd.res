@@ -131,8 +131,6 @@ module LocalStorage = {
 
 module IndexedDB = {
 
-  let contains = (list, str) => list->Array.some(item => item == str)
-
   module Get = {
     type t<'msg> = {
       db: string,
@@ -146,7 +144,7 @@ module IndexedDB = {
         let openRequest = IndexedDB_.indexedDB->IndexedDB_.open_(cmd.db, 1)
         openRequest->IndexedDB_.set_onupgradeneeded((event) => {
           let db = (event["target"] :> IndexedDB_.openRequest)->IndexedDB_.openRequestResult
-          if !(db->IndexedDB_.objectStoreNames->contains("keyvalue")) {
+          if !(db->IndexedDB_.objectStoreNames->IndexedDB_.contains("keyvalue")) {
             let _ = db->IndexedDB_.createObjectStore(cmd.store)
           }
         })
@@ -186,7 +184,7 @@ module IndexedDB = {
         let openRequest = IndexedDB_.indexedDB->IndexedDB_.open_(cmd.db, 1)
         openRequest->IndexedDB_.set_onupgradeneeded((event) => {
           let db = (event["target"] :> IndexedDB_.openRequest)->IndexedDB_.openRequestResult
-          if !(db->IndexedDB_.objectStoreNames->contains(cmd.store)) {
+          if !(db->IndexedDB_.objectStoreNames->IndexedDB_.contains(cmd.store)) {
             let _ = db->IndexedDB_.createObjectStore(cmd.store)
           }
         })
@@ -219,7 +217,7 @@ module IndexedDB = {
         let openRequest = IndexedDB_.indexedDB->IndexedDB_.open_(cmd.db, 1)
         openRequest->IndexedDB_.set_onupgradeneeded((event) => {
           let db = (event["target"] :> IndexedDB_.openRequest)->IndexedDB_.openRequestResult
-          if !(db->IndexedDB_.objectStoreNames->contains(cmd.store)) {
+          if !(db->IndexedDB_.objectStoreNames->IndexedDB_.contains(cmd.store)) {
             let _ = db->IndexedDB_.createObjectStore(cmd.store)
           }
         })
@@ -251,7 +249,7 @@ module IndexedDB = {
         let openRequest = IndexedDB_.indexedDB->IndexedDB_.open_(cmd.db, 1)
         openRequest->IndexedDB_.set_onupgradeneeded((event) => {
           let db = (event["target"] :> IndexedDB_.openRequest)->IndexedDB_.openRequestResult
-          if !(db->IndexedDB_.objectStoreNames->contains(cmd.store)) {
+          if !(db->IndexedDB_.objectStoreNames->IndexedDB_.contains(cmd.store)) {
             let _ = db->IndexedDB_.createObjectStore(cmd.store)
           }
         })

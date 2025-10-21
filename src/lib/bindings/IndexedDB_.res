@@ -5,6 +5,7 @@ type openRequest
 type idbTransaction
 type objectStore
 type request
+type stringList
 
 @val external indexedDB: t = "indexedDB"
 @send external open_: (t, string, int) => openRequest = "open"
@@ -15,7 +16,7 @@ type request
 @get external openRequestResult: openRequest => database = "result"
 @get external openRequestError: openRequest => exn = "error"
 @send external createObjectStore: (database, string) => objectStore = "createObjectStore"
-@get external objectStoreNames: database => array<string> = "objectStoreNames"
+@get external objectStoreNames: database => stringList = "objectStoreNames"
 @send external transaction: (database, string, string) => idbTransaction = "transaction"
 @send external objectStore: (idbTransaction, string) => objectStore = "objectStore"
 @set external set_oncomplete: (idbTransaction, 'event => unit) => unit = "oncomplete"
@@ -27,6 +28,19 @@ type request
 @get external requestResult: request => option<'a> = "result"
 @get external requestError: request => exn = "error"
 @get external transactionError: idbTransaction => exn = "error"
-@get external length: array<string> => int = "length"
-@send external item: (array<string>, int) => string = "item"
 @set external set_onerror: (request, 'event => unit) => unit = "onerror"
+@get external length: stringList => int = "length"
+@send external item: (stringList, int) => string = "item"
+
+let contains = (list, str) => {
+  let rec loop = i => {
+    if i >= list->length {
+      false
+    } else if list->item(i) == str {
+      true
+    } else {
+      loop(i + 1)
+    }
+  }
+  loop(0)
+}
