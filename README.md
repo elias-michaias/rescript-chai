@@ -1,14 +1,17 @@
 # Chai
 
-<img src="./chai.png" alt="logo" align="left" style="width: 200px; margin-right: 2rem; margin-bottom: 1rem;" />
+<div style="display: inline-block; vertical-align: top; width: 220px; margin-right: 2rem;">
+  <img src="./chai.png" alt="logo" style="width: 200px; height: auto;" />
+</div>
 
-<h2><code>rescript-chai</code></h2>
+<div style="display: inline-block; vertical-align: top; width: calc(100% - 240px);">
+  <h2><code>rescript-chai</code></h2>
+  <p>
+  <a href="https://github.com/elias-michaias/rescript-chai">Chai</a> is an implementation of <a href="https://guide.elm-lang.org/architecture/">The Elm Architecture</a> (TEA) in <a href="https://rescript-lang.org/">ReScript</a> - built on <a href="https://react.dev/">React</a>. Chai wants to make the React ecosystem accessible to the Model-View-Update paradigm, without sacrificing on the comforts you're used to.
+  </p>
+</div>
 
-<p>
-<a href="https://github.com/elias-michaias/rescript-chai">Chai</a> is an implementation of <a href="https://guide.elm-lang.org/architecture/">The Elm Architecture</a> (TEA) in <a href="https://rescript-lang.org/">ReScript</a> - built on <a href="https://react.dev/">React</a>. Chai wants to make the React ecosystem accessible to the Model-View-Update paradigm, without sacrificing on the comforts you're used to.
-</p>
-
-<div style="clear: both;"></div>
+<div style="clear: both; margin-bottom: 2rem;"></div>
 
 >[!WARNING]
 >Chai is an experimental project and is in the very early stages of development.
