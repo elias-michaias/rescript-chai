@@ -6,6 +6,7 @@
 <p style="text-align: center;" align="center">The Elm Architecture - in ReScript - on React</p>
 
 <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; justify-content: center; margin-bottom: 4em;" align="center">
+
   [![npm version](https://img.shields.io/npm/v/rescript-chai)](https://www.npmjs.com/package/rescript-chai)
   [![GitHub top language](https://img.shields.io/github/languages/top/elias-michaias/rescript-chai)](https://github.com/elias-michaias/rescript-chai)
   [![GitHub last commit](https://img.shields.io/github/last-commit/elias-michaias/rescript-chai)](https://github.com/elias-michaias/rescript-chai)
