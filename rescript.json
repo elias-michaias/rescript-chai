@@ -9,7 +9,7 @@
   "package-specs": [
     {
       "module": "esmodule",
-      "in-source": false
+      "in-source": true
     }
   ],
   "suffix": ".bs.js",

@@ -28,9 +28,5 @@ dist-ssr
 .bsb.lock
 .merlin
 
-# Compiled JS
-**/*.mjs
-
-
 # Bun lock file
 /bun.lockb

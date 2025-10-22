@@ -12,19 +12,19 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "rescript-chai": "file:../..",
-    "@jihchi/vite-plugin-rescript": "^7.1.0",
     "@glennsl/rescript-fetch": "^0.2.3",
+    "@jihchi/vite-plugin-rescript": "^7.1.0",
     "@rescript/core": "^1.6.1",
     "@rescript/react": "^0.13.1",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "rescript": "^11.1.4"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "rescript": "^11.1.4",
+    "rescript-chai": "^0.0.2-1"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.0.3",
-    "@vitejs/plugin-react": "^4.3.4",
-    "tailwindcss": "^4.0.3",
-    "vite": "^6.0.0"
+    "@tailwindcss/vite": "^4.1.15",
+    "@vitejs/plugin-react": "^4.7.0",
+    "tailwindcss": "^4.1.15",
+    "vite": "^6.4.1"
   }
 }
