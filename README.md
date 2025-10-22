@@ -36,7 +36,7 @@ type cmd = NoOp | Log(Cmd.Log.t)
 let update = (model, msg) => switch msg {
   | Increment => ({ count: model.count + 1 }, NoOp)
   | Decrement => ({ count: model.count - 1 }, NoOp)
-  | Set(n) => ({ count: n }, NoOp)
+  | Set(n) => ({ count: n }, Log("Set count to" ++ string_of_int(n)))
 }
 
 // Handle your side effects (HTTP, storage, timers, etc.)
