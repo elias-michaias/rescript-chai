@@ -13,6 +13,10 @@ src/
     -> ...
 ```
 
+>[!WARNING]
+>Leaving the core logic for the main MVU loop outside of the top-level component is necessary. When you instantiate a child component from a Kettle, that Kettle will need to reference types from the main MVU loop. If it is in the same file as the Kettle, the ReScript compiler will fail due to a dependency cycle.
+
+
 ### Brew
 The `Brew` is the home of the MVU loop's core logic. Here lies the traditional TEA staples:
 `model`, `msg`, `cmd`, `subs`, etc. A Brew can have multiple peer Brews, such as for handling multiple routes, but one Brew should never be dependent upon another.
