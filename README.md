@@ -2,8 +2,8 @@
   <img src="./logo.png" alt="Chai Logo" style="width: 200px; height: auto;" />
 </div>
 
-<h2 style="text-align: center;" align="center"><code>rescript-chai</code></h2>
-<p style="text-align: center;" align="center">The Elm Architecture 🍵 in ReScript 🍵 on React</p>
+<h1 style="text-align: center;" align="center"><code>rescript-chai</code></h1>
+<p style="text-align: center;" align="center">The Elm Architecture - in ReScript - on React</p>
 
 <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; justify-content: center; margin-bottom: 4em;" align="center">
 
