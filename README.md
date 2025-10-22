@@ -1,7 +1,7 @@
 # Chai
 
 <div style="text-align: center; margin-bottom: 2rem;" align="center">
-  <img src="https://github.com/elias-michaias/rescript/chai/blob/main/logo.png" alt="logo" style="width: 200px; height: auto;" />
+  <img src="./logo.png" alt="Chai Logo" style="width: 200px; height: auto;" />
 </div>
 
 <h2 style="text-align: center;"><code>rescript-chai</code></h2>
