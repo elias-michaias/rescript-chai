@@ -33,4 +33,4 @@ dist-ssr
 
 
 # Bun lock file
-bun.lockb
+/bun.lockb
