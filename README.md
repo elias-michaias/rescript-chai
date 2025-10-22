@@ -50,7 +50,7 @@ let subs = (_model) => [
     Sub.Time.every(1000, _ => Decrement)
 ]
 
-// Initialize your component with initial state and commands
+// Describe the initial state and effects
 let init = (count) => ({
     count: count
 }, Log("Counter initialized"))
