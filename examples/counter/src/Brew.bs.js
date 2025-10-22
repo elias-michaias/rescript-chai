@@ -204,10 +204,10 @@ async function run(cmd, dispatch) {
 }
 
 function subs(_model) {
-  return [Sub.$$WebSocket.listen("wss://echo.websocket.org", (function (s) {
+  return [Sub.Time.every(5000, (function () {
                   return {
-                          TAG: "Response",
-                          _0: "WS Message: " + s
+                          TAG: "Log",
+                          _0: "5 seconds passed"
                         };
                 }))];
 }

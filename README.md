@@ -27,26 +27,33 @@
 type model = { count: int }
 
 // Define your messages - events that can change state
-type msg = Increment | Set(int)
+type msg = Increment | Decrement | Set(int)
+
+// Define your commands - effects that interact with the world
+type cmd = NoOp | Log(Cmd.Log.t)
 
 // The update function - pure, handles all state changes
 let update = (model, msg) => switch msg {
   | Increment => ({ count: model.count + 1 }, NoOp)
+  | Decrement => ({ count: model.count - 1 }, NoOp)
   | Set(n) => ({ count: n }, NoOp)
 }
 
-// Commands for side effects (HTTP, storage, timers, etc.)
+// Handle your side effects (HTTP, storage, timers, etc.)
 let run = async (cmd, dispatch) => switch cmd {
-  // ... handle various commands like HTTP requests, local storage, etc.
+  | NoOp => ()
+  | Log(c) => await c->Cmd.Log.run
 }
 
 // Subscriptions for external events (WebSocket, timers, etc.)
 let subs = (_model) => [
-  // ... subscriptions like WebSocket listeners or interval timers
+    Sub.Time.every(1000, _ => Decrement)
 ]
 
 // Initialize your component with initial state and commands
-let init = () => ({ count: 0 }, NoOp)
+let init = () => ({
+    count: 0
+}, Log("Counter initialized"))
 
 // In your React component - use Chai's useKettle hook
 @react.component
@@ -60,7 +67,6 @@ let make = () => {
 
   <div>
     <p>{React.string("Count: " ++ string_of_int(model.count))}</p>
-    // Dispatch the Increment message
     <button onClick={_ => Increment->dispatch}>
       {React.string("Increment")}
     </button>
