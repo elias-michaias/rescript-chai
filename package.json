@@ -1,6 +1,6 @@
 {
   "name": "rescript-chai",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "type": "module",
   "scripts": {
     "res:build": "rescript",
