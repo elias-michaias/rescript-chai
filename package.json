@@ -1,27 +1,21 @@
 {
   "name": "rescript-chai",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "type": "module",
   "scripts": {
     "res:build": "rescript",
     "res:clean": "rescript clean",
     "res:dev": "rescript -w",
-    "dev": "vite",
-    "build": "vite build ",
-    "preview": "vite preview"
+    "build": "rescript",
+    "clean": "rescript clean",
+    "dev": "rescript -w"
   },
   "dependencies": {
     "@glennsl/rescript-fetch": "^0.2.3",
-    "@jihchi/vite-plugin-rescript": "^7.1.0",
     "@rescript/core": "^1.6.1",
     "@rescript/react": "^0.13.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "rescript": "^11.1.4"
-  },
-  "devDependencies": {
-    "@tailwindcss/vite": "^4.0.3",
-    "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^6.0.0"
   }
 }
