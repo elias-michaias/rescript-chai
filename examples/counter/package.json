@@ -1,18 +1,20 @@
 {
-  "name": "rescript-chai",
-  "version": "0.0.1",
+  "name": "chai-counter-example",
+  "private": true,
+  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "res:build": "rescript",
     "res:clean": "rescript clean",
     "res:dev": "rescript -w",
     "dev": "vite",
-    "build": "vite build ",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@glennsl/rescript-fetch": "^0.2.3",
+    "rescript-chai": "file:../..",
     "@jihchi/vite-plugin-rescript": "^7.1.0",
+    "@glennsl/rescript-fetch": "^0.2.3",
     "@rescript/core": "^1.6.1",
     "@rescript/react": "^0.13.1",
     "react": "^18.2.0",
@@ -22,6 +24,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.3",
     "@vitejs/plugin-react": "^4.3.4",
+    "tailwindcss": "^4.0.3",
     "vite": "^6.0.0"
   }
 }

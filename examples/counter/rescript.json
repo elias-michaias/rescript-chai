@@ -1,0 +1,28 @@
+{
+  "name": "chai-example-counter",
+  "sources": [
+    {
+      "dir": "src",
+      "subdirs": true
+    }
+  ],
+  "package-specs": [
+    {
+      "module": "esmodule",
+      "in-source": true
+    }
+  ],
+  "suffix": ".bs.js",
+  "bs-dependencies": [
+    "@rescript/core",
+    "@rescript/react",
+    "@glennsl/rescript-fetch",
+    "rescript-chai"
+  ],
+  "bsc-flags": [
+    "-open RescriptCore"
+  ],
+  "jsx": {
+    "version": 4
+  }
+}
