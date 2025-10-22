@@ -11,7 +11,7 @@
 </p>
 
 >[!WARNING]
->Chai is an experimental project and is in the very early stages of development.
+>Chai is an experimental project and is currently in early and development. Most APIs are incomplete, unstable, and subject to change.
 
 ## Example
 
