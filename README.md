@@ -51,18 +51,18 @@ let subs = (_model) => [
 ]
 
 // Initialize your component with initial state and commands
-let init = () => ({
-    count: 0
+let init = (count) => ({
+    count: count
 }, Log("Counter initialized"))
 
 // In your React component - use Chai's useKettle hook
 @react.component
-let make = () => {
+let make = (~count=12) => {
   let (model, dispatch) = Chai.useKettle({
     update: update,
     run: run,
     subs: subs,
-    init: init(),
+    init: init(count),
   })
 
   <div>
