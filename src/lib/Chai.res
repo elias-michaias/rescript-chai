@@ -1,8 +1,8 @@
-type config<'model, 'msg, 'cmd> = {
+type kettleConfig<'model, 'msg, 'cmd> = {
     update: ('model, 'msg) => ('model, 'cmd),
+    run?: ('cmd, 'msg => unit) => promise<unit>,
     init: ('model, 'cmd),
     subs?: 'model => array<Sub.subscription<'msg>>,
-    run?: ('cmd, 'msg => unit) => promise<unit>,
 }
 
 let useKettle = (config): (
@@ -38,4 +38,18 @@ let useKettle = (config): (
     }
 
     (model, msg => dispatch(msg))
+}
+
+type cupConfig<'model, 'subModel, 'msg, 'subMsg> = {
+    model: 'model,
+    dispatch: 'msg => unit,
+    filter: 'model => 'subModel,
+    infuse: 'subMsg => 'msg,
+}
+
+let useCup = (config) => {
+    let subModel = config.filter(config.model)
+    let subDispatch = (subMsg) => config.dispatch(config.infuse(subMsg))
+    
+    (subModel, subDispatch)
 }

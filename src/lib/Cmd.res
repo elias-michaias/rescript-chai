@@ -22,6 +22,9 @@ module Batch = {
         let promises = cmds->Array.map(c => runner(c, dispatch))
         let _ = await Promise.all(promises)
     }
+
+    type v<'cmd> = 
+      | Batch(t<'cmd>)
 }
 
 module Time = {
@@ -293,33 +296,32 @@ module WebSocket = {
     }
 }
 
-module type HasCmd = {
+
+module Base = {
   type msg
 
-  type rec cmd = 
+  type rec cmd =
     | NoOp
     | Batch(Batch.t<cmd>)
     | Log(Log.t)
     | Delay(Time.Delay.t<msg>)
     | Http(Http.t<msg>)
-    | StorageSet(LocalStorage.Set.t)
-    | StorageGet(LocalStorage.Get.t<msg>)
+    | LocalStorageSet(LocalStorage.Set.t)
+    | LocalStorageGet(LocalStorage.Get.t<msg>)
     | IndexedDBSet(IndexedDB.Set.t)
     | IndexedDBGet(IndexedDB.Get.t<msg>)
     | WebSocket(WebSocket.t)
-}
-
-module Default = (R: HasCmd) => {
-  let rec run = async (cmd: R.cmd, dispatch: 'msg => unit) => switch cmd {
-      | R.NoOp => ()
-      | R.Batch(c) => await c->Batch.run(dispatch, run)
-      | R.Log(c) => await c->Log.run
-      | R.Delay(c) => await c->Time.Delay.run(dispatch)
-      | R.Http(c) => await c->Http.run(dispatch)
-      | R.StorageSet(c) => await c->LocalStorage.Set.run(dispatch)
-      | R.StorageGet(c) => await c->LocalStorage.Get.run(dispatch)
-      | R.IndexedDBSet(c) => await c->IndexedDB.Set.run(dispatch)
-      | R.IndexedDBGet(c) => await c->IndexedDB.Get.run(dispatch)
-      | R.WebSocket(c) => await c->WebSocket.run(dispatch)
+  
+  let rec run = async (cmd, dispatch) => switch cmd {
+      | NoOp => ()
+      | Batch(c) => await c->Batch.run(dispatch, run)
+      | Log(c) => await c->Log.run
+      | Delay(c) => await c->Time.Delay.run(dispatch)
+      | Http(c) => await c->Http.run(dispatch)
+      | LocalStorageSet(c) => await c->LocalStorage.Set.run(dispatch)
+      | LocalStorageGet(c) => await c->LocalStorage.Get.run(dispatch)
+      | IndexedDBSet(c) => await c->IndexedDB.Set.run(dispatch)
+      | IndexedDBGet(c) => await c->IndexedDB.Get.run(dispatch)
+      | WebSocket(c) => await c->WebSocket.run(dispatch)
   }
 }
