@@ -13,6 +13,9 @@
 >[!WARNING]
 >Chai is an experimental project and is currently in early development. Most APIs are incomplete, unstable, and subject to change.
 
+
+<h2>Reference</h2>
+
 <h3>
 <a href="https://github.com/elias-michaias/rescript-chai/blob/main/reference/philosophy.md">
     Philosophy
