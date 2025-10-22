@@ -28,4 +28,4 @@ dist-ssr
 .bsb.lock
 .merlin
 
-/bun.lockb
+bun.lockb
