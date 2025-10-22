@@ -30,3 +30,7 @@ dist-ssr
 
 # Compiled JS
 **/*.mjs
+
+
+# Bun lock file
+bun.lockb
