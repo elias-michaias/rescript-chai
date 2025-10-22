@@ -15,32 +15,81 @@
 
 <br/><br/><br/>
 
-<p style="text-align: center; max-width: 600px; margin: 0 auto 2rem auto;">
-<a href="https://github.com/elias-michaias/rescript-chai">Chai</a> is an implementation of <a href="https://guide.elm-lang.org/architecture/">The Elm Architecture</a> (TEA) in <a href="https://rescript-lang.org/">ReScript</a> - built on <a href="https://react.dev/">React</a>. Chai wants to make the React ecosystem accessible to the Model-View-Update paradigm, without sacrificing on the comforts you're used to.
-</p>
-
 >[!WARNING]
->Chai is an experimental project and is currently in early development. Most APIs are incomplete, unstable, and subject to change.
+>Chai is an experimental project and is currently in early development. Most APIs are incomplete, unstable, and subject to change. Do not use Chai in production.
+
+<br/>
+
+<h2>What is Chai?</h2>
+<a href="https://github.com/elias-michaias/rescript-chai">Chai</a> is an implementation of <a href="https://guide.elm-lang.org/architecture/">The Elm Architecture</a> (TEA) in <a href="https://rescript-lang.org/">ReScript</a> - built on <a href="https://react.dev/">React</a>. Chai wants to make the React ecosystem accessible to the Model-View-Update paradigm, without sacrificing on the comforts you're used to.
+
+```rescript
+// Define your model - the state of your component
+type model = { count: int }
+
+// Define your messages - events that can change state
+type msg = Increment | Set(int)
+
+// The update function - pure, handles all state changes
+let update = (model, msg) => switch msg {
+  | Increment => ({ count: model.count + 1 }, NoOp)
+  | Set(n) => ({ count: n }, NoOp)
+}
+
+// Commands for side effects (HTTP, storage, timers, etc.)
+let run = async (cmd, dispatch) => switch cmd {
+  // ... handle various commands like HTTP requests, local storage, etc.
+}
+
+// Subscriptions for external events (WebSocket, timers, etc.)
+let subs = (_model) => [
+  // ... subscriptions like WebSocket listeners or interval timers
+]
+
+// Initialize your component with initial state and commands
+let init = () => ({ count: 0 }, NoOp)
+
+// In your React component - use Chai's useKettle hook
+@react.component
+let make = () => {
+  let (model, dispatch) = Chai.useKettle({
+    update: update,
+    run: run,
+    subs: subs,
+    init: init(),
+  })
+
+  <div>
+    <p>{React.string("Count: " ++ string_of_int(model.count))}</p>
+    // Dispatch the Increment message
+    <button onClick={_ => Increment->dispatch}>
+      {React.string("Increment")}
+    </button>
+  </div>
+}
+```
 
 <h2>Installation</h2>
-<code>npm i rescript-chai</code>
+```
+npm install rescript-chai
+```
 
 <h2>Reference</h2>
 
 <h3>
 <a href="https://github.com/elias-michaias/rescript-chai/blob/main/reference/philosophy.md">
-    Philosophy
+    Philosophy →
 </a>
 </h3>
 
 <h3>
 <a href="https://github.com/elias-michaias/rescript-chai/blob/main/reference/structure.md">
-    Structure
+    Structure →
 </a>
 </h3>
 
 <h3>
-<a href="https://github.com/elias-michaias/rescript-chai/blob/main/reference/example.md">
-    Example
+<a href="https://github.com/elias-michaias/rescript-chai/tree/main/examples/counter">
+    Examples →
 </a>
 </h3>
