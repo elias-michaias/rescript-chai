@@ -132,16 +132,9 @@ let rec run = async (cmd, dispatch) => switch cmd {
     | WebSocket(c) => await c->Cmd.WebSocket.run(dispatch)
 }
 
-/* 
- In ReScript v12 this syntax will work:
-    --------------------------------------
-    let rec run = async (cmd, dispatch) => switch cmd {
-        | ...cmd as c => await c->Cmd.Base.run(dispatch)
-    }
-    */
-
 let subs = (_model) => [
     Sub.WebSocket.listen("wss://echo.websocket.org", s => Response("WS Message: " ++ s)),
+    Sub.Time.every(1000, _ => Increment)
 ]
 
 let init = (count) => {

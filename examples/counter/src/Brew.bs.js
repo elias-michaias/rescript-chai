@@ -204,12 +204,17 @@ async function run(cmd, dispatch) {
 }
 
 function subs(_model) {
-  return [Sub.Time.every(5000, (function () {
+  return [
+          Sub.$$WebSocket.listen("wss://echo.websocket.org", (function (s) {
                   return {
-                          TAG: "Log",
-                          _0: "5 seconds passed"
+                          TAG: "Response",
+                          _0: "WS Message: " + s
                         };
-                }))];
+                })),
+          Sub.Time.every(1000, (function () {
+                  return "Increment";
+                }))
+        ];
 }
 
 function init(count) {
