@@ -4,9 +4,9 @@
 
 <h1 style="text-align: center;" align="center"><code>rescript-chai</code></h1>
 <div style="text-align: center; display: flex; gap: 1rem;" align="center">
-  <img src="https://cdn.simpleicons.org/elm/1293D8" alt="Elm" width="24" height="24"/>
-  <img src="https://cdn.simpleicons.org/rescript/E6484F" alt="ReScript" width="24" height="24"/>
-  <img src="https://cdn.simpleicons.org/react/61DAFB" alt="React" width="24" height="24"/>
+  <img src="https://cdn.simpleicons.org/elm/1293D8" alt="Elm" width="32" height="32" style="margin-right: 1em;"/>
+  <img src="https://cdn.simpleicons.org/rescript/E6484F" alt="ReScript" width="32" height="32" style="margin-right: 1em;"/>
+  <img src="https://cdn.simpleicons.org/react/61DAFB" alt="React" width="32" height="32"/>
 </div>
 <p style="text-align: center;" align="center">The Elm Architecture - in ReScript - on React</p>
 
