@@ -3,6 +3,11 @@
 </div>
 
 <h1 style="text-align: center;" align="center"><code>rescript-chai</code></h1>
+<div style="text-align: center; display: flex;" align="center">
+<img height="32" width="32" src="https://cdn.simpleicons.org/elm/#1493D7" />
+<img height="32" width="32" src="https://cdn.simpleicons.org/rescript/#E84F4F" />
+<img height="32" width="32" src="https://cdn.simpleicons.org/react/#57C4DC" />
+</div>
 <p style="text-align: center;" align="center">The Elm Architecture - in ReScript - on React</p>
 
 <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; justify-content: center; margin-bottom: 4em;" align="center">
