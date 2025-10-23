@@ -7,7 +7,7 @@
     "res:build": "rescript",
     "res:clean": "rescript clean",
     "res:dev": "rescript -w",
-    "dev": "vite",
+    "dev": "vite & rescript -w",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -19,7 +19,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "rescript": "^11.1.4",
-    "rescript-chai": "^0.0.3"
+    "rescript-chai": "^0.0.9"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.15",

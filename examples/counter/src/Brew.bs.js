@@ -203,6 +203,11 @@ async function run(cmd, dispatch) {
   }
 }
 
+var Spec = {
+  update: update,
+  run: run
+};
+
 function subs(_model) {
   return [
           Sub.$$WebSocket.listen("wss://echo.websocket.org", (function (s) {
@@ -265,8 +270,7 @@ function init(count) {
 }
 
 export {
-  update ,
-  run ,
+  Spec ,
   subs ,
   init ,
 }
