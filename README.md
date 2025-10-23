@@ -83,13 +83,13 @@ let make = (~count=12) => {
 }
 ```
 
-<h2>Installation</h2>
+<h2>Installation 🚀</h2>
 
 ```bash
 npm install rescript-chai
 ```
 
-<h2>Reference</h2>
+<h2>Reference 📖</h2>
 
 <h3>
 <a href="https://github.com/elias-michaias/rescript-chai/blob/main/reference/philosophy.md">
