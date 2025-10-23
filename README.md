@@ -55,7 +55,7 @@ let init = (count) => ({
     count: count
 }, Log("Counter initialized"))
 
-// In your React component - use Chai's useKettle hook
+// Wire everything together!
 @react.component
 let make = (~count=12) => {
   let (model, dispatch) = Chai.useKettle({

@@ -2,13 +2,6 @@ type subscription<'msg> = {
   start: ('msg => unit) => (unit => unit),
 }
 
-let batch = (subscriptions: array<array<subscription<'msg>>>) => Belt.Array.concatMany(subscriptions)
-
-// WebSocket types
-type webSocket
-type messageEvent = {data: string}
-
-// WebSocket subscription
 module WebSocket = {
   type t<'msg> = {
     url: string,
@@ -33,7 +26,6 @@ module WebSocket = {
   }
 }
 
-// Timer subscription
 module Time = {
   type t<'msg> = {
     interval: int,
@@ -49,20 +41,19 @@ module Time = {
   }
 }
 
-// Browser events subscription
 module Browser = {
   module Events = {
     type t<'msg> = {
-      eventName: string,
+      on: string,
       cons: Dom.event => 'msg,
     }
 
-    let on = (eventName, cons) => {
+    let on = (on, cons) => {
       start: dispatch => {
         let handler = event => dispatch(cons(event))
         let window: Js.t<{..}> = %raw("window")
-        window["addEventListener"](eventName, handler)
-        () => window["removeEventListener"](eventName, handler)
+        window["addEventListener"](on, handler)
+        () => window["removeEventListener"](on, handler)
       }
     }
   }
