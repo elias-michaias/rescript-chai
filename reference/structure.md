@@ -25,7 +25,7 @@ The `config` contains `update`, `run`, `init`, optional `subs`, and a
 - `subs`: `model => array<Sub.subscription<'msg>>` - optional subscription generator.
 - `middleware`: `initializer<'s> => initializer<'s>` - (see <a href="https://github.com/elias-michaias/rescript-chai/blob/main/reference/middleware.md">Middleware</a>).
 
-### `useInstance`
+#### `useInstance`
 
 `Chai.brew` returns a React hook (the `useInstance` hook). Calling that
 hook returns a pair `(store, dispatch)` where:
