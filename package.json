@@ -16,6 +16,7 @@
     "@rescript/react": "^0.13.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "rescript": "^11.1.4"
+    "rescript": "^11.1.4",
+    "zustand": "^5.0.8"
   }
 }

@@ -14,22 +14,26 @@ type kettleConfig<'model, 'msg, 'cmd> = {
     subs?: 'model => array<Sub.subscription<'msg>>,
 }
 
-let useKettle = (config): (
-    'model,
-    'msg => unit
-) => {
-    let ((model, cmd), dispatch) = React.useReducer(
-        ((model, _cmd), msg) => config.update(model, msg),
-        config.init
+let useKettle = (config) => {
+    // Extract initial state
+    let (initialModel, initialCmd) = config.init
+
+    let (store, dispatch) = Zustand_.useZustandRedux(
+        config.update,
+        initialModel,
+        initialCmd
     )
+
+    // Always get current command for potential use in effects
+    let currentCmd = Obj.magic(store)((storeState: Zustand_.reduxStoreState<'model, 'msg, 'cmd>) => storeState.command)
 
     // Handle commands
     switch config.run {
         | Some(runFn) => {
             React.useEffect(() => {
-                runFn(cmd, msg => dispatch(msg))->ignore
+                runFn(currentCmd, dispatch)->ignore
                 None
-            }, [cmd])
+            }, [currentCmd])
         }
         | None => ()
     }
@@ -37,28 +41,37 @@ let useKettle = (config): (
     // Handle subscriptions
     switch config.subs {
         | Some(subsFn) => {
+            let currentModel = Obj.magic(store)((storeState: Zustand_.reduxStoreState<'model, 'msg, 'cmd>) => storeState.state)
             React.useEffect(() => {
-                let subscriptions = subsFn(model)
+                let subscriptions = subsFn(currentModel)
                 let cleanups = subscriptions->Array.map(sub => sub.start(dispatch))
                 Some(() => cleanups->Array.forEach(cleanup => cleanup()))
-            }, [subsFn])
+            }, [currentModel])
         }
         | None => ()
     }
 
-    (model, msg => dispatch(msg))
+    (store, dispatch)
+}
+
+// Hook for selecting from store with proper typing
+let select = (store, selector) => {
+  let v = Obj.magic(store)((storeState: Zustand_.reduxStoreState<'model, 'msg, 'cmd>) => selector(storeState.state))
+  v
 }
 
 type cupConfig<'model, 'subModel, 'msg, 'subMsg> = {
-    model: 'model,
+    store: Zustand_.store,
     dispatch: 'msg => unit,
     filter: 'model => 'subModel,
     infuse: 'subMsg => 'msg,
 }
 
-let useCup = (config) => {
-    let subModel = config.filter(config.model)
-    let subDispatch = (subMsg) => config.dispatch(config.infuse(subMsg))
+let useCup = (config: cupConfig<'model, 'subModel, 'msg, 'subMsg>) => {
+    let useSubSelector = (subSelector) => {
+        select(config.store, model => subSelector(config.filter(model)))
+    }
+    let cupDispatch = (subMsg) => config.dispatch(config.infuse(subMsg))
     
-    (subModel, subDispatch)
+    (useSubSelector, cupDispatch)
 }
