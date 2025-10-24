@@ -4,7 +4,7 @@
 
 Chai builds stores using Zustand and supports applying Zustand middleware at create-time. This document shows how to write a simple middleware in ReScript (or bind an existing JS middleware) and then pipe it into `Chai.brew`'s `middleware` option.
 
-Zustand middleware are create-time wrappers with the shape:
+Zustand middleware are wrappers with the shape:
 
 ```rescript
 initializer<'s> => initializer<'s>
@@ -16,7 +16,7 @@ Where `initializer<'s>` is the state-creator function with the signature:
 (set, get, api) => initialState
 ```
 
-In Chai the `brew` config accepts `middleware` (a create-wrapper) which will be applied to the initializer before the final call to `Zustand.create`.  This means middleware must be applied when the store is created:
+In Chai the `brew` config accepts a `middleware` function which will be applied to the initializer before the final call to `Zustand.create`:
 
 ```rescript
 let middleware = (store) => store
