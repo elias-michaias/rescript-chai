@@ -20,6 +20,7 @@
   [![GitHub top language](https://img.shields.io/github/languages/top/elias-michaias/rescript-chai)](https://github.com/elias-michaias/rescript-chai)
   [![GitHub last commit](https://img.shields.io/github/last-commit/elias-michaias/rescript-chai)](https://github.com/elias-michaias/rescript-chai)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+  [![gzipped size](https://img.shields.io/badge/gzipped-4.5KB-purple.svg)](https://github.com/elias-michaias/rescript-chai)
 </div>
 <br/>
 

@@ -1,1 +1,24 @@
+# exclude app examples (they're not part of the published package)
 examples/
+
+# ignore source ReScript files and build intermediates
+src/
+*.res
+*.resi
+*.rei
+
+# Node / tooling
+node_modules/
+.vscode/
+.DS_Store
+.git/
+
+# Dev-only files
+dev/
+
+# ReScript build outputs we DO want are in lib/, so exclude incremental dirs
+lib/bs/___incremental/
+
+# Keep README and reference docs
+!README.md
+!reference/

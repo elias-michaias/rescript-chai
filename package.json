@@ -8,8 +8,22 @@
     "res:dev": "rescript -w",
     "build": "rescript",
     "clean": "rescript clean",
-    "dev": "rescript -w"
+    "dev": "rescript -w",
+    "prepack": "rescript",
+    "pack:tgz": "npm pack",
+    "size:folder": "rescript && npx package-size .",
+    "size:pack": "rescript && npm pack && mkdir -p /tmp/rescript-chai-pkg && tar -xzf ./rescript-chai-$(node -p \"require('./package.json').version\").tgz -C /tmp/rescript-chai-pkg --strip-components=1 && npx package-size /tmp/rescript-chai-pkg && rm -rf /tmp/rescript-chai-pkg && rm rescript-chai-*.tgz",
+    "size:gz": "node ./scripts/size.cjs"
   },
+  "main": "src/Chai.bs.js",
+  "module": "src/Chai.js",
+  "files": [
+    "src/",
+    "lib/",
+    "package.json",
+    "README.md",
+    "reference/"
+  ],
   "dependencies": {
     "@glennsl/rescript-fetch": "^0.2.3",
     "@rescript/core": "^1.6.1",
