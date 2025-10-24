@@ -136,6 +136,12 @@ npm install rescript-chai
 </h3>
 
 <h3>
+<a href="https://github.com/elias-michaias/rescript-chai/blob/main/reference/structure.md">
+    Structure →
+</a>
+</h3>
+
+<h3>
 <a href="https://github.com/elias-michaias/rescript-chai/blob/main/reference/middleware.md">
     Middleware →
 </a>
