@@ -27,11 +27,15 @@
 <img src="./shot.png" alt="Chai Code" />
 <br/>
 <h2>What is Chai? 🍵</h2>
-<a href="https://github.com/elias-michaias/rescript-chai">Chai</a> is an implementation of <a href="https://guide.elm-lang.org/architecture/">The Elm Architecture</a> (TEA) in <a href="https://rescript-lang.org/">ReScript</a> - built on <a href="https://react.dev/">React</a>. Chai wants to make the React ecosystem accessible to the Model-View-Update paradigm, without sacrificing on the comforts you're used to. Model your state, clearly define all state transformations, and represent side effects as data structures.
+<a href="https://github.com/elias-michaias/rescript-chai">Chai</a> is an implementation of <a href="https://guide.elm-lang.org/architecture/">The Elm Architecture</a> (TEA) in <a href="https://rescript-lang.org/">ReScript</a> - built on <a href="https://react.dev/">React</a> and <a href="https://github.com/pmndrs/zustand">zustand 🐻</a>. Chai wants to make the React ecosystem accessible to the Model-View-Update paradigm, without sacrificing on the comforts you're used to. Model your state, clearly define all state transformations, and represent side effects as data structures.
 <br/>
 <br/>
 
+Here's an example of a file `Brew.res` that defines the core logic for a Model-View-Update loop:
+
 ```rescript
+// Brew.res
+
 // Define your model - the state of your component
 type model = { count: int }
 
@@ -49,6 +53,8 @@ let update = (model, msg) => switch msg {
 }
 
 // Handle your side effects (HTTP, storage, timers, etc.)
+// Delegate to Chai runtime defaults (Cmd.Log.run) or make your own
+// (Swap out runners for test and production environments!)
 let run = async (cmd, dispatch) => switch cmd {
   | NoOp => ()
   | Log(c) => await c->Cmd.Log.run
@@ -60,28 +66,58 @@ let subs = (_model) => [
 ]
 
 // Describe the initial state and effects
-let init = (count) => ({
-    count: count
-}, Log("Counter initialized"))
+let init = (
+    {
+      count: 0
+    }, 
+    Log("Counter initialized")
+)
+
+// Use zustand middleware or make your own!
+// Compatible with redux devtools :)
+// https://github.com/reduxjs/redux-devtools
+let middleware = (store) => store
+    ->Zustand_.persist({name: "counter"})
+    ->Zustand_.devtools({})
 
 // Wire everything together!
+let useCounter = Chai.brew({ 
+    update, run, subs, init, middleware  
+})
+```
+
+After you've created your hook, you can then use it anywhere you want.
+The generated hook is idempotent and will never re-run effects. You can safely call it from any component to access the core loop's state:
+
+```rescript
+// Counter.res
+open Chai
+
 @react.component
-let make = (~count=12) => {
-  let (model, dispatch) = Chai.useKettle({
-    update: update,
-    run: run,
-    subs: subs,
-    init: init(count),
-  })
+let make = () => {
+  // `useCounter` is idempotent - 
+  // use this hook anywhere to tap into the core MVU loop
+  // without fear of re-running effects
+  let (store, dispatch) = Brew.useCounter()
+
+  // basic selection of a field
+  let title = store->select(m => m.title)
+
+  // computed selector: you can compute derived values inline
+  let double = store->select(m => m.count * 2)
 
   <div>
-    <p>{React.string("Count: " ++ string_of_int(model.count))}</p>
-    <button onClick={_ => Increment->dispatch}>
-      {React.string("Increment")}
+    <h2>{React.string(title)}</h2>
+    <p>{React.string("Double: " ++ Int.toString(double))}</p>
+    <button onClick={_ => Increment->dispatch}> 
+      {React.string("Inc")} 
     </button>
   </div>
 }
 ```
+
+Because Chai uses Zustand under the hood, fine-grained reactivity has never been easier. `select` delegates to Zustand and only re-renders when the
+selected projection changes.
 
 <h2>Installation 🚀</h2>
 
@@ -98,8 +134,8 @@ npm install rescript-chai
 </h3>
 
 <h3>
-<a href="https://github.com/elias-michaias/rescript-chai/blob/main/reference/structure.md">
-    Structure →
+<a href="https://github.com/elias-michaias/rescript-chai/blob/main/reference/middleware.md">
+    Middleware →
 </a>
 </h3>
 
