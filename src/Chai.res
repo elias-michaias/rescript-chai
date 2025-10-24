@@ -156,9 +156,13 @@ let brew: (kettleConfig<'model, 'msg, 'cmd>) => (unit => (Zustand_.store, 'msg =
 type pourOptions<'parentModel,'parentMsg,'subModel,'subMsg> = {filter: 'parentModel => 'subModel, infuse: 'subMsg => 'parentMsg}
 
 let pour = (useInstanceHook: unit => (Zustand_.store, 'parentMsg => unit), opts: pourOptions<'parentModel,'parentMsg,'subModel,'subMsg>) => {
-  let (store, dispatch) = useInstanceHook()
-  let filtered: filteredStore<'subModel,'subMsg,'cmd> = makeFilteredStore(store, Some(opts.filter), Some(opts.infuse))
-  let wrappedStore: Zustand_.store = Obj.magic(filtered)
-  let wrappedDispatch = (subMsg) => dispatch(opts.infuse(subMsg))
-  (wrappedStore, wrappedDispatch)
+    /* return a hook that components call */
+    let useP = () => {
+        let (store, dispatch) = useInstanceHook()
+        let filtered: filteredStore<'subModel,'subMsg,'cmd> = makeFilteredStore(store, Some(opts.filter), Some(opts.infuse))
+        let wrappedStore: Zustand_.store = Obj.magic(filtered)
+        let wrappedDispatch = (subMsg) => dispatch(opts.infuse(subMsg))
+        (wrappedStore, wrappedDispatch)
+    }
+    useP
 }

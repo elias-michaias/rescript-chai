@@ -137,16 +137,18 @@ function brew(config) {
 }
 
 function pour(useInstanceHook, opts) {
-  var match = useInstanceHook();
-  var dispatch = match[1];
-  var filtered = makeFilteredStore(match[0], opts.filter, opts.infuse);
-  var wrappedDispatch = function (subMsg) {
-    dispatch(opts.infuse(subMsg));
+  return function () {
+    var match = useInstanceHook();
+    var dispatch = match[1];
+    var filtered = makeFilteredStore(match[0], opts.filter, opts.infuse);
+    var wrappedDispatch = function (subMsg) {
+      dispatch(opts.infuse(subMsg));
+    };
+    return [
+            filtered,
+            wrappedDispatch
+          ];
   };
-  return [
-          filtered,
-          wrappedDispatch
-        ];
 }
 
 export {
