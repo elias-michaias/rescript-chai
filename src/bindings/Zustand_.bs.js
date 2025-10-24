@@ -7,7 +7,7 @@ import * as Caml_option from "rescript/lib/es6/caml_option.js";
 function useZustandRedux(update, initialModel, initialCmd) {
   var storeRef = React.useRef(undefined);
   if (storeRef.current === undefined) {
-    var storeInstance = Zustand.create(function (set, _get) {
+    var storeInstance = Zustand.create(function (set, _get, _api) {
           return {
                   state: initialModel,
                   dispatch: (function (action) {
@@ -36,7 +36,7 @@ function useZustandRedux(update, initialModel, initialCmd) {
 }
 
 function createZustandRedux(update, initialModel, initialCmd) {
-  return Zustand.create(function (set, _get) {
+  return Zustand.create(function (set, _get, _api) {
               return {
                       state: initialModel,
                       dispatch: (function (action) {

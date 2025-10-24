@@ -7,10 +7,24 @@ module type Kettle = {
     let run: (cmd, msg => unit) => promise<unit>
 }
 
-type kettleConfig<'model, 'msg, 'cmd> = {
+/* baseCreate: function that builds a Zustand store from MVU pieces */
+type baseCreate<'model,'msg,'cmd> = (('model, 'msg) => ('model, 'cmd), 'model, 'cmd) => Zustand_.store
+
+/* createFn: function that turns an initializer into a Zustand.store */
+type createFn<'s> = (Zustand_.initializer<'s> => Zustand_.store)
+
+/* createWrapperForCreate: pipelineable wrapper over createFn; callers can
+    write `extend: create => create->Chai.persist(opts)->Chai.devtools(opts2)` */
+type createWrapperForCreate<'s> = createFn<'s> => createFn<'s>
+
+type brewConfig<'model, 'msg, 'cmd> = {
     update: ('model, 'msg) => ('model, 'cmd),
     run?: ('cmd, 'msg => unit) => promise<unit>,
     init: ('model, 'cmd),
+          /* extend is a create-wrapper (initializer => initializer) matching
+              Zustand's native middleware shape. Pass `Zustand_.persist(opts)` or
+              a composed wrapper. */
+          extend?: Zustand_.createWrapper<Zustand_.reduxStoreState<'model,'msg,'cmd>>,
     subs?: 'model => array<Sub.subscription<'msg>>,
 }
 
@@ -23,46 +37,6 @@ type store<'model> = Zustand_.store
 type hookOptions<'model, 'msg, 'subModel, 'subMsg> = {
     filter: option<'model => 'subModel>,
     infuse: option<'subMsg => 'msg>,
-}
-
-let useKettle = (config) => {
-    // Extract initial state
-    let (initialModel, initialCmd) = config.init
-
-    let (store, dispatch) = Zustand_.useZustandRedux(
-        config.update,
-        initialModel,
-        initialCmd
-    )
-
-    // Always get current command for potential use in effects
-    let currentCmd = Obj.magic(store)((storeState: Zustand_.reduxStoreState<'model, 'msg, 'cmd>) => storeState.command)
-
-    // Handle commands
-    switch config.run {
-        | Some(runFn) => {
-            React.useEffect(() => {
-                runFn(currentCmd, dispatch)->ignore
-                None
-            }, [currentCmd])
-        }
-        | None => ()
-    }
-
-    // Handle subscriptions
-    switch config.subs {
-        | Some(subsFn) => {
-            let currentModel = Obj.magic(store)((storeState: Zustand_.reduxStoreState<'model, 'msg, 'cmd>) => storeState.state)
-            React.useEffect(() => {
-                let subscriptions = subsFn(currentModel)
-                let cleanups = subscriptions->Array.map(sub => sub.start(dispatch))
-                Some(() => cleanups->Array.forEach(cleanup => cleanup()))
-            }, [currentModel])
-        }
-        | None => ()
-    }
-
-      (store, dispatch)
 }
 
 // Top-level selector helper kept polymorphic per-call to avoid inference collisions
@@ -105,48 +79,69 @@ let makeFilteredStore = (origStore: store<'model>, filterOpt: option<'model => '
 // Zustand store on first use. Moving initialization into the returned function avoids
 // doing top-level side-effects at brew time and prevents the value-restriction that
 // forced callers to annotate types.
-let brew: (kettleConfig<'model, 'msg, 'cmd>) => (unit => (store<'model>, 'msg => unit)) = (config: kettleConfig<'model, 'msg, 'cmd>) => {
+let brew: (brewConfig<'model, 'msg, 'cmd>) => (unit => (store<'model>, 'msg => unit)) = (config: brewConfig<'model, 'msg, 'cmd>) => {
     let storeRef: ref<option<Zustand_.store>> = ref(None)
 
     let ensureStore = () => {
         switch storeRef.contents {
-        | Some(s) => s
-        | None => {
-            let (initialModel, initialCmd) = config.init
-            let s = Zustand_.createZustandRedux(config.update, initialModel, initialCmd)
-
-            /* wire run() once using the imperative subscribe/getState API */
-            switch config.run {
-            | Some(runFn) => {
-                let state0: Zustand_.reduxStoreState<'model,'msg,'cmd> = Obj.magic(Zustand_.getState(s))
-                let prevCmdRef = ref(state0.command)
-                runFn(state0.command, state0.dispatch)->ignore
-                let _unsub = Zustand_.subscribe(s, st => {
-                    let stTyped: Zustand_.reduxStoreState<'model,'msg,'cmd> = Obj.magic(st)
-                    if stTyped.command != prevCmdRef.contents {
-                        prevCmdRef.contents = stTyped.command
-                        runFn(stTyped.command, stTyped.dispatch)->ignore
+            | Some(s) => s
+            | None => {
+                let (initialModel, initialCmd) = config.init
+                /* build the initializer that returns the reduxStoreState for our MVU */
+                let initializer = ((set: (Zustand_.reduxStoreState<'model,'msg,'cmd> => Zustand_.reduxStoreState<'model,'msg,'cmd>) => unit), (_get: unit => Zustand_.reduxStoreState<'model,'msg,'cmd>), (_api: Zustand_.storeApi<Zustand_.reduxStoreState<'model,'msg,'cmd>>)) => {
+                    let storeState: Zustand_.reduxStoreState<'model,'msg,'cmd> = {
+                        state: initialModel,
+                        command: initialCmd,
+                        dispatch: (action) => set((current: Zustand_.reduxStoreState<'model,'msg,'cmd>) => {
+                            let (newState, newCmd) = config.update(current.state, action)
+                            {...current, state: newState, command: newCmd}
+                        })
                     }
-                })
-                // note: unsub intentionally dropped for singleton lifetime
-            }
-            | None => ()
-            }
+                    storeState
+                }
 
-            /* start subs once (app lifetime) */
-            switch config.subs {
-            | Some(subsFn) => {
-                let stateNow: Zustand_.reduxStoreState<'model,'msg,'cmd> = Obj.magic(Zustand_.getState(s))
-                let modelNow = stateNow.state
-                let subscriptions = subsFn(modelNow)
-                let _cleanups = subscriptions->Array.map(sub => sub.start(stateNow.dispatch))
-            }
-            | None => ()
-            }
 
-            storeRef.contents = Some(s)
-            s
-        }
+                /* apply middleware by calling the provided create-wrapper (an
+                    initializer=>initializer function) directly on the initializer. */
+                let enhancedInit = switch config.extend {
+                | Some(ext) => ext(initializer)
+                | None => initializer
+                }
+
+                let s = Zustand_.create(enhancedInit)
+
+                /* wire run() once using the imperative subscribe/getState API */
+                switch config.run {
+                | Some(runFn) => {
+                    let state0: Zustand_.reduxStoreState<'model,'msg,'cmd> = Obj.magic(Zustand_.getState(s))
+                    let prevCmdRef = ref(state0.command)
+                    runFn(state0.command, state0.dispatch)->ignore
+                    let _unsub = Zustand_.subscribe(s, st => {
+                        let stTyped: Zustand_.reduxStoreState<'model,'msg,'cmd> = Obj.magic(st)
+                        if stTyped.command != prevCmdRef.contents {
+                            prevCmdRef.contents = stTyped.command
+                            runFn(stTyped.command, stTyped.dispatch)->ignore
+                        }
+                    })
+                    // note: unsub intentionally dropped for singleton lifetime
+                }
+                | None => ()
+                }
+
+                /* start subs once (app lifetime) */
+                switch config.subs {
+                | Some(subsFn) => {
+                    let stateNow: Zustand_.reduxStoreState<'model,'msg,'cmd> = Obj.magic(Zustand_.getState(s))
+                    let modelNow = stateNow.state
+                    let subscriptions = subsFn(modelNow)
+                    let _cleanups = subscriptions->Array.map(sub => sub.start(stateNow.dispatch))
+                }
+                | None => ()
+                }
+
+                storeRef.contents = Some(s)
+                s
+            }
         }
     }
 
@@ -168,14 +163,16 @@ let brew: (kettleConfig<'model, 'msg, 'cmd>) => (unit => (store<'model>, 'msg =>
 type pourOptions<'parentModel,'parentMsg,'subModel,'subMsg> = {filter: 'parentModel => 'subModel, infuse: 'subMsg => 'parentMsg}
 
 let pour = (useInstanceHook: unit => (store<'parentModel>, 'parentMsg => unit), opts: pourOptions<'parentModel,'parentMsg,'subModel,'subMsg>) => {
-    /* return a hook that components call */
     let useP = () => {
         let (store, dispatch) = useInstanceHook()
         let filtered: filteredStore<'subModel,'subMsg,'cmd> = makeFilteredStore(store, Some(opts.filter), Some(opts.infuse))
-        /* present the filtered object as our public store<'subModel> */
         let wrappedStore: store<'subModel> = Obj.magic(filtered)
         let wrappedDispatch = (subMsg) => dispatch(opts.infuse(subMsg))
         (wrappedStore, wrappedDispatch)
     }
     useP
 }
+
+let persist = Zustand_.persist
+let devtools = Zustand_.devtools
+
