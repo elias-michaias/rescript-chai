@@ -9,8 +9,10 @@
   <img src="https://cdn.simpleicons.org/rescript/E6484F" alt="ReScript" width="32" height="32"/>
   &nbsp;&nbsp;&nbsp;
   <img src="https://cdn.simpleicons.org/react/61DAFB" alt="React" width="32" height="32"/>
+  &nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/pmndrs/zustand"><img src="https://github.githubassets.com/images/icons/emoji/unicode/1f43b.png" alt="zustand (bear)" width="32" height="32"/></a>
 </div>
-<p style="text-align: center;" align="center">The Elm Architecture - in ReScript - on React</p>
+<p style="text-align: center;" align="center">The Elm Architecture - in ReScript - on React - with Zustand</p>
 
 <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; justify-content: center; margin-bottom: 4em;" align="center">
 
