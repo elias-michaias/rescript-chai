@@ -21,10 +21,10 @@ type brewConfig<'model, 'msg, 'cmd> = {
     update: ('model, 'msg) => ('model, 'cmd),
     run?: ('cmd, 'msg => unit) => promise<unit>,
     init: ('model, 'cmd),
-          /* extend is a create-wrapper (initializer => initializer) matching
-              Zustand's native middleware shape. Pass `Zustand_.persist(opts)` or
-              a composed wrapper. */
-          extend?: Zustand_.createWrapper<Zustand_.reduxStoreState<'model,'msg,'cmd>>,
+    /* middleware is a create-wrapper (initializer => initializer) matching
+         Zustand's native middleware shape. Pass `Zustand_.persist(opts)` or
+        a composed wrapper. */
+    middleware?: Zustand_.createWrapper<Zustand_.reduxStoreState<'model,'msg,'cmd>>,
     subs?: 'model => array<Sub.subscription<'msg>>,
 }
 
@@ -103,7 +103,7 @@ let brew: (brewConfig<'model, 'msg, 'cmd>) => (unit => (store<'model>, 'msg => u
 
                 /* apply middleware by calling the provided create-wrapper (an
                     initializer=>initializer function) directly on the initializer. */
-                let enhancedInit = switch config.extend {
+                let enhancedInit = switch config.middleware {
                 | Some(ext) => ext(initializer)
                 | None => initializer
                 }

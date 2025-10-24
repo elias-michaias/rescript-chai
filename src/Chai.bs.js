@@ -75,7 +75,7 @@ function brew(config) {
               command: initialCmd
             };
     };
-    var ext = config.extend;
+    var ext = config.middleware;
     var enhancedInit = ext !== undefined ? ext(initializer) : initializer;
     var s$1 = Zustand.create(enhancedInit);
     var runFn = config.run;
