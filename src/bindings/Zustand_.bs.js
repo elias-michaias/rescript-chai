@@ -26,16 +26,36 @@ function useZustandRedux(update, initialModel, initialCmd) {
     storeRef.current = Caml_option.some(storeInstance);
   }
   var store = storeRef.current;
-  var dispatch = store(function (storeState) {
-        return storeState.dispatch;
-      });
+  var dispatch = Zustand.useStore(store, (function (storeState) {
+          return storeState.dispatch;
+        }));
   return [
           store,
           dispatch
         ];
 }
 
+function createZustandRedux(update, initialModel, initialCmd) {
+  return Zustand.create(function (set, _get) {
+              return {
+                      state: initialModel,
+                      dispatch: (function (action) {
+                          set(function (current) {
+                                var match = update(current.state, action);
+                                return {
+                                        state: match[0],
+                                        dispatch: current.dispatch,
+                                        command: match[1]
+                                      };
+                              });
+                        }),
+                      command: initialCmd
+                    };
+            });
+}
+
 export {
   useZustandRedux ,
+  createZustandRedux ,
 }
 /* react Not a pure module */
