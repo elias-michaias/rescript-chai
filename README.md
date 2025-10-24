@@ -24,7 +24,7 @@
 <br/>
 
 >[!WARNING]
->Chai is currently in early development. Most APIs are incomplete, unstable, and subject to change. Do not use Chai in production.
+>Chai is currently in early development. Some APIs are incomplete, unstable, or subject to change. Do not use Chai in production.
 <br/>
 <img src="./code.png" alt="Chai Code" />
 <br/>
