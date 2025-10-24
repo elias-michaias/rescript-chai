@@ -31,7 +31,7 @@ let useCounter = Chai.brew({
 
 ### Writing new middleware
 
-This example showcases a simple tracing middleware that logs all state changes. Notice how ReScript's powerful type inference is able to let the following code compile:
+This example showcases a simple tracing middleware that logs all state changes. Notice how ReScript's powerful type inference is able to let the following code compile without type signatures provided:
 
 ```rescript
 // DevTraceMiddleware.res
