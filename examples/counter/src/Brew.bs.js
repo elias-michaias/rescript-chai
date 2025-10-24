@@ -2,8 +2,11 @@
 
 import * as Cmd from "rescript-chai/src/Cmd.bs.js";
 import * as Sub from "rescript-chai/src/Sub.bs.js";
+import * as Chai from "rescript-chai/src/Chai.bs.js";
 import * as Caml_format from "rescript/lib/es6/caml_format.js";
 import * as Core__Option from "@rescript/core/src/Core__Option.bs.js";
+import * as DevTraceMiddleware from "./DevTraceMiddleware.bs.js";
+import * as Middleware from "zustand/middleware";
 
 function update(model, msg) {
   if (typeof msg !== "object") {
@@ -217,57 +220,88 @@ function subs(_model) {
         ];
 }
 
-function init(count) {
-  return [
-          {
-            count: count,
-            title: "Counter Component",
-            person: {
-              name: "Alice",
-              age: 30
-            }
-          },
-          {
-            TAG: "Batch",
-            _0: [
-              {
-                TAG: "Log",
-                _0: "Counter initialized"
-              },
-              {
-                TAG: "Delay",
-                _0: {
-                  ms: 1000,
-                  msg: {
-                    TAG: "Set",
-                    _0: -5
-                  }
-                }
-              },
-              {
-                TAG: "Http",
-                _0: {
-                  url: "https://httpbin.org/base64/SGVsbG8gV29ybGQ=",
-                  req: {
-                    method: "GET"
-                  },
-                  cons: (async function (r) {
-                      return {
-                              TAG: "Response",
-                              _0: await r.text()
-                            };
-                    })
-                }
-              }
-            ]
-          }
-        ];
+var init_0 = {
+  count: 0,
+  title: "Counter Component",
+  person: {
+    name: "Alice",
+    age: 30
+  }
+};
+
+var init_1 = {
+  TAG: "Batch",
+  _0: [
+    {
+      TAG: "Log",
+      _0: "Counter initialized"
+    },
+    {
+      TAG: "Delay",
+      _0: {
+        ms: 5000,
+        msg: {
+          TAG: "Set",
+          _0: -5
+        }
+      }
+    },
+    {
+      TAG: "Http",
+      _0: {
+        url: "https://httpbin.org/base64/SGVsbG8gV29ybGQ=",
+        req: {
+          method: "GET"
+        },
+        cons: (async function (r) {
+            return {
+                    TAG: "Response",
+                    _0: await r.text()
+                  };
+          })
+      }
+    }
+  ]
+};
+
+var init = [
+  init_0,
+  init_1
+];
+
+function middleware(store) {
+  return Middleware.devtools(Middleware.persist(DevTraceMiddleware.trace(store, "Counter Store"), {
+                  name: "counter"
+                }), {});
 }
+
+var useCounter = Chai.brew({
+      update: update,
+      run: run,
+      init: init,
+      middleware: middleware,
+      subs: subs
+    });
+
+var usePerson = Chai.pour(useCounter, {
+      filter: (function (m) {
+          return m.person;
+        }),
+      infuse: (function (subMsg) {
+          return {
+                  TAG: "PersonMsg",
+                  _0: subMsg
+                };
+        })
+    });
 
 export {
   update ,
   run ,
   subs ,
   init ,
+  middleware ,
+  useCounter ,
+  usePerson ,
 }
-/* No side effect */
+/* useCounter Not a pure module */

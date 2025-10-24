@@ -7,37 +7,24 @@ import * as CupTest from "./CupTest.bs.js";
 import * as JsxRuntime from "react/jsx-runtime";
 
 function Counter(props) {
-  var __count = props.count;
-  var count = __count !== undefined ? __count : 0;
-  var match = Chai.useKettle({
-        update: Brew.update,
-        run: Brew.run,
-        init: Brew.init(count),
-        subs: Brew.subs
-      });
+  var match = Brew.useCounter();
   var dispatch = match[1];
-  var model = match[0];
-  var match$1 = Chai.useCup({
-        model: model,
-        dispatch: dispatch,
-        filter: (function (model) {
-            return model.person;
-          }),
-        infuse: (function (msg) {
-            return {
-                    TAG: "PersonMsg",
-                    _0: msg
-                  };
-          })
-      });
+  var store = match[0];
+  var title = Chai.select(store, (function (m) {
+          return m.title;
+        }));
+  var count = Chai.select(store, (function (m) {
+          return m.count;
+        }));
+  console.log("-- Counter rendered");
   return JsxRuntime.jsxs("div", {
               children: [
                 JsxRuntime.jsx("h2", {
-                      children: model.title,
+                      children: title,
                       className: "text-2xl font-bold mb-4"
                     }),
                 JsxRuntime.jsx("p", {
-                      children: "Count: " + String(model.count),
+                      children: "Count: " + count.toString(),
                       className: "text-lg mb-4"
                     }),
                 JsxRuntime.jsxs("div", {
@@ -86,7 +73,7 @@ function Counter(props) {
                               onClick: (function (param) {
                                   dispatch({
                                         TAG: "SaveCount",
-                                        _0: model.count
+                                        _0: count
                                       });
                                 })
                             }),
@@ -101,7 +88,7 @@ function Counter(props) {
                               onClick: (function (param) {
                                   dispatch({
                                         TAG: "SaveCountIDB",
-                                        _0: model.count
+                                        _0: count
                                       });
                                 })
                             }),
@@ -114,10 +101,7 @@ function Counter(props) {
                       ],
                       className: "flex flex-wrap"
                     }),
-                JsxRuntime.jsx(CupTest.make, {
-                      model: match$1[0],
-                      dispatch: match$1[1]
-                    })
+                JsxRuntime.jsx(CupTest.make, {})
               ]
             });
 }
@@ -127,4 +111,4 @@ var make = Counter;
 export {
   make ,
 }
-/* Chai Not a pure module */
+/* Brew Not a pure module */

@@ -1,5 +1,3 @@
-open Fetch
-
 type person = {
     name: string,
     age: int,
@@ -137,31 +135,37 @@ let subs = (_model) => [
     Sub.Time.every(1000, _ => Increment)
 ]
 
-/* 
- In ReScript v12 this syntax will work:
---------------------------------------
-let rec run = async (cmd, dispatch) => switch cmd {
-    | ...cmd as c => await c->Cmd.Base.run(dispatch)
-}
-*/
 
-
-let init = (count): (model, cmd) => {
+let init = {
     ({
-        count: count,
+        count: 0,
         title: "Counter Component",
         person: { name: "Alice", age: 30 }
     }, 
         Batch([
             Log("Counter initialized"),
-            Delay({ msg: Some(-5)->Set, ms: 1000}),
+            Delay({ msg: Some(-5)->Set, ms: 5000}),
             Http({
                 url: "https://httpbin.org/base64/SGVsbG8gV29ybGQ=",
                 req: {
                     method: #GET
                 },
-                cons: async r => Response(await r->Response.text)
+                cons: async r => Response(await r->Fetch.Response.text)
             })
         ])
     )
 }
+
+let middleware = (store) => store
+    ->DevTraceMiddleware.trace("Counter Store")
+    ->Zustand_.persist({name: "counter"})
+    ->Zustand_.devtools({})
+
+let useCounter = Chai.brew({ 
+    update, run, subs, init, middleware  
+})
+
+let usePerson = Chai.pour(useCounter, {
+    filter: m => m.person, 
+    infuse: subMsg => PersonMsg(subMsg)
+})

@@ -19,7 +19,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "rescript": "^11.1.4",
-    "rescript-chai": "^0.0.10"
+    "rescript-chai": "^0.1.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.15",
