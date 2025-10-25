@@ -54,11 +54,27 @@ async function run$4(cmd, dispatch) {
   return dispatch(msg);
 }
 
-var Http = {
+var Req = {
   run: run$4
 };
 
 async function run$5(cmd, dispatch) {
+  var response = await fetch(cmd.url, cmd.req);
+  var body = await response.json();
+  var msg = await cmd.cons(body);
+  return dispatch(msg);
+}
+
+var Json = {
+  run: run$5
+};
+
+var Http = {
+  Req: Req,
+  Json: Json
+};
+
+async function run$6(cmd, dispatch) {
   var result;
   try {
     result = Dom_storage.getItem(cmd.key, localStorage);
@@ -76,10 +92,10 @@ async function run$5(cmd, dispatch) {
 }
 
 var Get = {
-  run: run$5
+  run: run$6
 };
 
-async function run$6(_cmd, _dispatch) {
+async function run$7(_cmd, _dispatch) {
   try {
     return Dom_storage.setItem(_cmd.key, _cmd.value, localStorage);
   }
@@ -93,10 +109,10 @@ async function run$6(_cmd, _dispatch) {
 }
 
 var $$Set = {
-  run: run$6
+  run: run$7
 };
 
-async function run$7(_cmd, _dispatch) {
+async function run$8(_cmd, _dispatch) {
   try {
     return Dom_storage.removeItem(_cmd.key, localStorage);
   }
@@ -110,10 +126,10 @@ async function run$7(_cmd, _dispatch) {
 }
 
 var Remove = {
-  run: run$7
+  run: run$8
 };
 
-async function run$8(_cmd, _dispatch) {
+async function run$9(_cmd, _dispatch) {
   try {
     localStorage.clear();
     return ;
@@ -128,7 +144,7 @@ async function run$8(_cmd, _dispatch) {
 }
 
 var Clear = {
-  run: run$8
+  run: run$9
 };
 
 var LocalStorage = {
@@ -138,7 +154,7 @@ var LocalStorage = {
   Clear: Clear
 };
 
-async function run$9(cmd, dispatch) {
+async function run$10(cmd, dispatch) {
   try {
     var openRequest = indexedDB.open(cmd.db, 1);
     openRequest.onupgradeneeded = (function ($$event) {
@@ -178,10 +194,10 @@ async function run$9(cmd, dispatch) {
 }
 
 var Get$1 = {
-  run: run$9
+  run: run$10
 };
 
-async function run$10(cmd, _dispatch) {
+async function run$11(cmd, _dispatch) {
   try {
     var openRequest = indexedDB.open(cmd.db, 1);
     openRequest.onupgradeneeded = (function ($$event) {
@@ -218,10 +234,10 @@ async function run$10(cmd, _dispatch) {
 }
 
 var $$Set$1 = {
-  run: run$10
+  run: run$11
 };
 
-async function run$11(cmd, _dispatch) {
+async function run$12(cmd, _dispatch) {
   try {
     var openRequest = indexedDB.open(cmd.db, 1);
     openRequest.onupgradeneeded = (function ($$event) {
@@ -258,10 +274,10 @@ async function run$11(cmd, _dispatch) {
 }
 
 var Remove$1 = {
-  run: run$11
+  run: run$12
 };
 
-async function run$12(cmd, _dispatch) {
+async function run$13(cmd, _dispatch) {
   try {
     var openRequest = indexedDB.open(cmd.db, 1);
     openRequest.onupgradeneeded = (function ($$event) {
@@ -298,7 +314,7 @@ async function run$12(cmd, _dispatch) {
 }
 
 var Clear$1 = {
-  run: run$12
+  run: run$13
 };
 
 var IndexedDB = {
@@ -308,53 +324,31 @@ var IndexedDB = {
   Clear: Clear$1
 };
 
-async function run$13(cmd, _dispatch) {
-  var conn = Connection.Manager.getOrCreateConnection(cmd.url);
-  var onOpen = function () {
-    var jsonString = JSON.stringify(cmd.data);
-    conn.ws.send(jsonString);
-  };
-  if (conn.isConnected) {
-    var jsonString = JSON.stringify(cmd.data);
-    conn.ws.send(jsonString);
-    return ;
+async function run$14(cmd, _dispatch) {
+  var match = cmd.stringify;
+  if (match !== undefined && match) {
+    return Connection.Manager.send(cmd.url, cmd.data, true);
   }
-  addEventListener(conn.ws, "open", onOpen);
+  return Connection.Manager.send(cmd.url, cmd.data, false);
 }
 
 var $$WebSocket = {
-  run: run$13
+  run: run$14
 };
 
-async function run$14(cmd, dispatch) {
-  if (typeof cmd !== "object") {
-    return ;
-  }
-  switch (cmd.TAG) {
-    case "Batch" :
-        return await run(cmd._0, dispatch, run$14);
-    case "Log" :
-        return await run$3(cmd._0);
-    case "Delay" :
-        return await run$1(cmd._0, dispatch);
-    case "Http" :
-        return await run$4(cmd._0, dispatch);
-    case "LocalStorageSet" :
-        return await run$6(cmd._0, dispatch);
-    case "LocalStorageGet" :
-        return await run$5(cmd._0, dispatch);
-    case "IndexedDBSet" :
-        return await run$10(cmd._0, dispatch);
-    case "IndexedDBGet" :
-        return await run$9(cmd._0, dispatch);
-    case "WebSocket" :
-        return await run$13(cmd._0, dispatch);
-    
-  }
+async function run$15(cmds, runner, dispatch) {
+  var len = cmds.length;
+  var _loop = async function (i) {
+    if (i < len) {
+      await runner(cmds[i], dispatch);
+      await _loop(i + 1 | 0);
+    }
+    return await _loop(0);
+  };
 }
 
-var Base = {
-  run: run$14
+var Sequence = {
+  run: run$15
 };
 
 export {
@@ -365,6 +359,6 @@ export {
   LocalStorage ,
   IndexedDB ,
   $$WebSocket ,
-  Base ,
+  Sequence ,
 }
 /* No side effect */

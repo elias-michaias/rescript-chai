@@ -1,20 +1,9 @@
-module type Cup = {
-    type model
-    type msg
-
-    let update: (model, msg) => model
-}
-
-
 module Batch = {
     type t<'cmd> = array<'cmd>
     let run = async (cmds, dispatch, runner) => {
         let promises = cmds->Array.map(c => runner(c, dispatch))
         let _ = await Promise.all(promises)
     }
-
-    type v<'cmd> = 
-      | Batch(t<'cmd>)
 }
 
 module Time = {
@@ -46,16 +35,34 @@ module Log = {
 
 
 module Http = {
+  module Req = {
     type t<'msg> = {
-        url: string,
-        req: Fetch.Request.init, 
-        cons: Fetch.Response.t => promise<'msg>,
+      url: string,
+      req: Fetch.Request.init,
+      cons: Fetch.Response.t => promise<'msg>,
     }
+
     let run = async (cmd, dispatch) => {
-        let response = await Fetch.fetch(cmd.url, cmd.req)
-        let msg = await cmd.cons(response)
-        dispatch(msg)
+      let response = await Fetch.fetch(cmd.url, cmd.req)
+      let msg = await cmd.cons(response)
+      dispatch(msg)
     }
+  }
+
+  module Json = {
+    type t<'msg> = {
+      url: string,
+      req: Fetch.Request.init,
+      cons: Js.Json.t => promise<'msg>,
+    }
+
+    let run = async (cmd, dispatch) => {
+      let response = await Fetch.fetch(cmd.url, cmd.req)
+      let body = await response->Fetch.Response.json
+      let msg = await cmd.cons(body)
+      dispatch(msg)
+    }
+  }
 }
 
 module LocalStorage = {
@@ -104,7 +111,6 @@ module LocalStorage = {
       } catch {
       | Js.Exn.Error(_) => ()
       }
-      // Fire and forget - no message dispatched
     }
   }
 
@@ -117,10 +123,10 @@ module LocalStorage = {
       } catch {
       | Js.Exn.Error(_) => ()
       }
-      // Fire and forget - no message dispatched
     }
   }
 }
+
 
 module IndexedDB = {
 
@@ -265,53 +271,33 @@ module IndexedDB = {
 }
 
 module WebSocket = {
-    type t = {
-        url: string,
-        data: Js.Json.t,
+  type t = {
+    url: string,
+    data: Js.Json.t,
+    stringify?: bool,
+  }
+
+  let run = async (cmd, _dispatch) => {
+    switch cmd.stringify {
+      | Some(true) => Connection.Manager.send(~url=cmd.url, ~data=cmd.data, ~stringify=true)
+      | Some(false) | None => Connection.Manager.send(~url=cmd.url, ~data=cmd.data, ~stringify=false)
     }
-    let run = async (cmd, _dispatch) => {
-        let conn = Connection.Manager.getOrCreateConnection(cmd.url)
-        let onOpen = () => {
-            let jsonString = Js.Json.stringify(cmd.data)
-            conn.ws->WebSocket_.send(jsonString)
-            // Don't close the connection - let it stay open for subscriptions
-        }
-        // If already connected, send immediately
-        if conn.isConnected {
-            let jsonString = Js.Json.stringify(cmd.data)
-            conn.ws->WebSocket_.send(jsonString)
-        } else {
-            conn.ws->WebSocket_.addEventListener("open", onOpen)
-        }
-    }
+  }
 }
 
+module Sequence = {
+  type t<'cmd> = array<'cmd>
 
-module Base = {
-  type msg
-
-  type rec cmd =
-    | NoOp
-    | Batch(Batch.t<cmd>)
-    | Log(Log.t)
-    | Delay(Time.Delay.t<msg>)
-    | Http(Http.t<msg>)
-    | LocalStorageSet(LocalStorage.Set.t)
-    | LocalStorageGet(LocalStorage.Get.t<msg>)
-    | IndexedDBSet(IndexedDB.Set.t)
-    | IndexedDBGet(IndexedDB.Get.t<msg>)
-    | WebSocket(WebSocket.t)
-  
-  let rec run = async (cmd, dispatch) => switch cmd {
-      | NoOp => ()
-      | Batch(c) => await c->Batch.run(dispatch, run)
-      | Log(c) => await c->Log.run
-      | Delay(c) => await c->Time.Delay.run(dispatch)
-      | Http(c) => await c->Http.run(dispatch)
-      | LocalStorageSet(c) => await c->LocalStorage.Set.run(dispatch)
-      | LocalStorageGet(c) => await c->LocalStorage.Get.run(dispatch)
-      | IndexedDBSet(c) => await c->IndexedDB.Set.run(dispatch)
-      | IndexedDBGet(c) => await c->IndexedDB.Get.run(dispatch)
-      | WebSocket(c) => await c->WebSocket.run(dispatch)
+  let run = async (cmds: t<'cmd>, runner, dispatch) => {
+    let len = Array.length(cmds)
+    let rec _loop = async i => {
+      if i < len {
+        let _ = await runner(Array.getUnsafe(cmds, i), dispatch)
+        await _loop(i + 1)
+      } else {
+        ()
+      }
+      await _loop(0)
+    }
   }
 }
