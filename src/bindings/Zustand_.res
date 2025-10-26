@@ -1,4 +1,12 @@
-type store
+/* Raw opaque store type representing the actual Zustand instance (JS value).
+  Use `rawStore` for low-level bindings that call into the runtime. */
+type rawStore
+
+/* Public typed store alias carrying the application model as `state`.
+  This describes the shape exposed to ReScript consumers. At runtime the
+  value is still the raw Zustand instance; Chai coerces the raw store into
+  this public shape at the boundary so consumers can access `.state`. */
+type store<'model> = {state: 'model}
 
 type storeApi<'s> = {
   setState: ('s => 's) => unit,
@@ -7,19 +15,19 @@ type storeApi<'s> = {
 }
 
 @module("zustand")
-external create: (((('state => 'state) => unit, (unit => 'state), storeApi<'state>) => 'state) => store) = "create"
+external create: (((('state => 'state) => unit, (unit => 'state), storeApi<'state>) => 'state) => rawStore) = "create"
 
 @module("zustand/middleware")
 external redux: (('state, 'action) => 'state, 'state) => ((('state => 'state) => unit, unit => 'state) => 'state) = "redux"
 
 @module("zustand")
-external useStore: ('store, 'state => 'selected) => 'selected = "useStore"
+external useStore: (rawStore, 'state => 'selected) => 'selected = "useStore"
 
 @send
-external getState: ('store) => 'state = "getState"
+external getState: (rawStore) => 'state = "getState"
 
 @send
-external subscribe: ('store, ('state => unit)) => (unit => unit) = "subscribe"
+external subscribe: (rawStore, ('state => unit)) => (unit => unit) = "subscribe"
 
 type reduxStoreState<'model, 'msg, 'cmd> = {
   state: 'model,
@@ -71,7 +79,7 @@ let createZustandRedux = (update, initialModel, initialCmd) => {
 type initializer<'s> = ((('s => 's) => unit), (unit => 's), storeApi<'s>) => 's
 type createWrapper<'s> = initializer<'s> => initializer<'s>
 
-type createFn<'s> = (initializer<'s> => store)
+type createFn<'s> = (initializer<'s> => rawStore)
 
 type persistOptions<'state,'u> = {
   name: string,

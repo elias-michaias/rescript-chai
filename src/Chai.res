@@ -63,7 +63,7 @@ module type Kettle = {
   let init: baseCreate<MyModel,MyMsg,MyCmd> = (update, model, cmd) => Zustand_.create(...)
   ```
 */
-type baseCreate<'model,'msg,'cmd> = (('model, 'msg) => ('model, 'cmd), 'model, 'cmd) => Zustand_.store
+type baseCreate<'model,'msg,'cmd> = (('model, 'msg) => ('model, 'cmd), 'model, 'cmd) => Zustand_.rawStore
 
 /** Transforms a Zustand initializer into a store.
 
@@ -71,7 +71,7 @@ type baseCreate<'model,'msg,'cmd> = (('model, 'msg) => ('model, 'cmd), 'model, '
   let makeCreate = init => Zustand_.create(init)
   ```
 */
-type createFn<'s> = (Zustand_.initializer<'s> => Zustand_.store)
+type createFn<'s> = (Zustand_.initializer<'s> => Zustand_.rawStore)
 
 /**
   Pipelineable wrapper for store creation.
@@ -167,7 +167,9 @@ type brewConfig<'model, 'msg, 'cmd> = {
   let s: store<{count:int}> = Obj.magic(Zustand_.create(...))
   ```
 */
-type store<'model> = Zustand_.store
+type store<'model> = Zustand_.store<'model>
+
+type storeHook<'model,'msg> = unit => (store<'model>, 'msg => unit)
 
 /** Options passed to the generated hook when scoping to a sub-model.
 
@@ -251,7 +253,7 @@ let makeFilteredStore = (origStore: store<'model>, filterOpt: option<'model => '
   ```
 */
 let brew: (brewConfig<'model, 'msg, 'cmd>) => (unit => (store<'model>, 'msg => unit)) = (config: brewConfig<'model, 'msg, 'cmd>) => {
-  let storeRef: ref<option<Zustand_.store>> = ref(None)
+  let storeRef: ref<option<Zustand_.rawStore>> = ref(None)
 
   let ensureStore = () => {
     switch storeRef.contents {
@@ -271,7 +273,7 @@ let brew: (brewConfig<'model, 'msg, 'cmd>) => (unit => (store<'model>, 'msg => u
       }
 
       let enhancedInit = switch config.middleware { | Some(ext) => ext(initializer) | None => initializer }
-      let s = Zustand_.create(enhancedInit)
+  let s = Zustand_.create(enhancedInit)
 
       switch config.run { | Some(runFn) => {
         let state0: Zustand_.reduxStoreState<'model,'msg,'cmd> = Obj.magic(Zustand_.getState(s))
@@ -346,9 +348,11 @@ let brew: (brewConfig<'model, 'msg, 'cmd>) => (unit => (store<'model>, 'msg => u
   }
 
   let useInstance = () => {
-    let store = ensureStore()
-    let publicStore: store<'model> = Obj.magic(store)
-    let dispatch = Zustand_.useStore(Obj.magic(store), (st: Zustand_.reduxStoreState<'model, 'msg, 'cmd>) => st.dispatch)
+   let store = ensureStore()
+   /* Coerce the raw Zustand instance into the public typed store that exposes `.state`.
+     This localized Obj.magic keeps the rest of the codebase ergonomic (store.state). */
+   let publicStore: store<'model> = Obj.magic(store)
+   let dispatch = Zustand_.useStore(store, (st: Zustand_.reduxStoreState<'model, 'msg, 'cmd>) => st.dispatch)
     (publicStore, dispatch)
   }
 
@@ -402,13 +406,14 @@ let pour = (useInstanceHook: unit => (store<'parentModel>, 'parentMsg => unit), 
 
 /** Re-export of `Zustand_.persist` for compose-friendly middleware use.
 
-  ```rescriptstore
+  ```rescript
   /* Adding persist middleware */
   let middleware = (store) => store
     ->Chai.persist({name: "app"})
   ```
 */
 let persist = Zustand_.persist
+
 /** Re-export of `Zustand_.devtools` for developer tooling.
 
   ```rescript
@@ -418,4 +423,3 @@ let persist = Zustand_.persist
   ```
 */
 let devtools = Zustand_.devtools
-

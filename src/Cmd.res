@@ -74,7 +74,7 @@ module LocalStorage = {
 
     let run = async (cmd, dispatch) => {
       let result = try {
-        let value = Dom.Storage.getItem(cmd.key)(Dom_storage2.localStorage)
+        let value = Dom.Storage.getItem(cmd.key, Dom_storage2.localStorage)
         value
       } catch {
       | Js.Exn.Error(_) => None
