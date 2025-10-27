@@ -29,49 +29,11 @@ external getState: (rawStore) => 'state = "getState"
 @send
 external subscribe: (rawStore, ('state => unit)) => (unit => unit) = "subscribe"
 
-type reduxStoreState<'model, 'msg, 'cmd> = {
+type reduxStoreState<'model, 'msg, 'cmd, 'chrono> = {
   state: 'model,
   dispatch: 'msg => unit,
   command: 'cmd,
-}
-
-let useZustandRedux = (update, initialModel, initialCmd) => {
-  let storeRef = React.useRef(None)
-  if storeRef.current == None {
-    let storeInstance = create(((set: (reduxStoreState<'model,'msg,'cmd> => reduxStoreState<'model,'msg,'cmd>) => unit), _get, _api) => {
-      let storeState = {
-        state: initialModel,
-        command: initialCmd,
-        dispatch: (action) => set((current: reduxStoreState<'model,'msg,'cmd>) => {
-          let (newState, newCmd) = update(current.state, action)
-          {...current, state: newState, command: newCmd}
-        })
-      }
-      storeState
-    })
-    storeRef.current = Some(storeInstance)
-  }
-
-  let store = storeRef.current->Option.getUnsafe
-
-  let dispatch = useStore(store, storeState => storeState.dispatch)
-
-  (store, dispatch)
-}
-
-let createZustandRedux = (update, initialModel, initialCmd) => {
-  let storeInstance = create(((set: (reduxStoreState<'model,'msg,'cmd> => reduxStoreState<'model,'msg,'cmd>) => unit), _get, _api) => {
-    let storeState = {
-      state: initialModel,
-      command: initialCmd,
-      dispatch: (action) => set((current: reduxStoreState<'model,'msg,'cmd>) => {
-        let (newState, newCmd) = update(current.state, action)
-        {...current, state: newState, command: newCmd}
-      })
-    }
-    storeState
-  })
-  storeInstance
+  chrono: 'chrono,
 }
 
 /* state creator / initializer shape: (set, get, api) => state

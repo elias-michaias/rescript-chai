@@ -84,6 +84,15 @@ type createFn<'s> = (Zustand_.initializer<'s> => Zustand_.rawStore)
 */
 type createWrapperForCreate<'s> = createFn<'s> => createFn<'s>
 
+type brewConfigOptsChrono = {
+  enabled?: bool,
+  max?: int,
+}
+
+type brewConfigOpts = {
+  chrono?: brewConfigOptsChrono
+}
+
 /** Configuration record for `Chai.brew`.
 
   ```rescript
@@ -99,7 +108,7 @@ type createWrapperForCreate<'s> = createFn<'s> => createFn<'s>
   let useApp = brew(cfg)
   ```
 */
-type brewConfig<'model, 'msg, 'cmd> = {
+type brewConfig<'model, 'msg, 'cmd, 'chrono> = {
   /** Pure reducer that returns a new model and a command.
 
   ```rescript
@@ -145,7 +154,7 @@ type brewConfig<'model, 'msg, 'cmd> = {
     ->Chai.devtools({})
   ```
   */
-  middleware?: Zustand_.createWrapper<Zustand_.reduxStoreState<'model,'msg,'cmd>>,
+  middleware?: Zustand_.createWrapper<Zustand_.reduxStoreState<'model,'msg,'cmd, 'chrono>>,
   /** Optional subscription factory that produces subscriptions (or options) from the model.
 
   Factories may now return option<subscription> when conditionally included — the runtime
@@ -157,6 +166,8 @@ type brewConfig<'model, 'msg, 'cmd> = {
   ```
   */
   subs?: 'model => array<option<Sub.subscription<'model,'msg>>>,
+
+  opts?: brewConfigOpts,
 }
 
 /**
@@ -201,7 +212,15 @@ type hookOptions<'model, 'msg, 'subModel, 'subMsg> = {
   ```
 */
 let select = (store: store<'model>, selector) =>
-  Zustand_.useStore(Obj.magic(store), (storeState: Zustand_.reduxStoreState<'model, 'msg, 'cmd>) => selector(storeState.state))
+  Zustand_.useStore(Obj.magic(store), (storeState: Zustand_.reduxStoreState<'model, 'msg, 'cmd, 'chrono>) => selector(storeState.state))
+
+let chrono = (store: store<'model>, selector): Chrono.chronoApi<'model> => {
+   Zustand_.useStore(Obj.magic(store), (storeState: Zustand_.reduxStoreState<'model, 'msg, 'cmd, 'chrono>) => selector(storeState.chrono))
+}
+
+/* Helper proxy factory is implemented in JS helper `src/utils/proxify.js`.
+  We expose the proxify function (default export) from that module below.
+*/
 
 /** Runtime shape for a filtered store used by `pour` and `makeFilteredStore`.
 
@@ -210,7 +229,7 @@ let select = (store: store<'model>, selector) =>
   let st = fs["getState"]()
   ```
 */
-type filteredStore<'subModel, 'subMsg, 'cmd> = {. "getState": unit => Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd>, "subscribe": (Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd> => unit) => (unit => unit) }
+type filteredStore<'subModel, 'subMsg, 'cmd, 'chrono> = {. "getState": unit => Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd, 'chrono>, "subscribe": (Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd, 'chrono> => unit) => (unit => unit) }
 
 /**
   Create a runtime filtered store object that projects a parent store into a typed sub-model view.
@@ -221,19 +240,19 @@ type filteredStore<'subModel, 'subMsg, 'cmd> = {. "getState": unit => Zustand_.r
   let (s, dispatch) = (Obj.magic(filtered), filtered["getState"]())
   ```
 */
-let makeFilteredStore = (origStore: store<'model>, filterOpt: option<'model => 'subModel>, infuseOpt: option<'subMsg => 'msg>): filteredStore<'subModel,'subMsg,'cmd> => {
-  let getState: unit => Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd> = () => {
-    let s: Zustand_.reduxStoreState<'model, 'msg, 'cmd> = Obj.magic(Zustand_.getState(Obj.magic(origStore)))
+let makeFilteredStore = (origStore: store<'model>, filterOpt: option<'model => 'subModel>, infuseOpt: option<'subMsg => 'msg>): filteredStore<'subModel,'subMsg,'cmd,'chrono> => {
+  let getState: unit => Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd, 'chrono> = () => {
+    let s: Zustand_.reduxStoreState<'model, 'msg, 'cmd, 'chrono> = Obj.magic(Zustand_.getState(Obj.magic(origStore)))
     let statePart: 'subModel = switch filterOpt { | Some(f) => f(s.state) | None => Obj.magic(s.state) }
     let dispatchPart: 'subMsg => unit = switch infuseOpt { | Some(inf) => (subMsg) => s.dispatch(inf(subMsg)) | None => (subMsg) => s.dispatch(Obj.magic(subMsg)) }
-    {state: statePart, dispatch: dispatchPart, command: s.command}
+    {state: statePart, dispatch: dispatchPart, command: s.command, chrono: s.chrono}
   }
 
-  let subscribe: (Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd> => unit) => (unit => unit) = (listener) => {
-    let unsub = Zustand_.subscribe(Obj.magic(origStore), (s: Zustand_.reduxStoreState<'model, 'msg, 'cmd>) => {
+  let subscribe: (Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd, 'chrono> => unit) => (unit => unit) = (listener) => {
+    let unsub = Zustand_.subscribe(Obj.magic(origStore), (s: Zustand_.reduxStoreState<'model, 'msg, 'cmd, 'chrono>) => {
       let statePart: 'subModel = switch filterOpt { | Some(f) => f(s.state) | None => Obj.magic(s.state) }
       let dispatchPart: 'subMsg => unit = switch infuseOpt { | Some(inf) => (subMsg) => s.dispatch(inf(subMsg)) | None => (subMsg) => s.dispatch(Obj.magic(subMsg)) }
-      listener({state: statePart, dispatch: dispatchPart, command: s.command})
+      listener({state: statePart, dispatch: dispatchPart, command: s.command, chrono: s.chrono})
     })
     unsub
   }
@@ -252,7 +271,7 @@ let makeFilteredStore = (origStore: store<'model>, filterOpt: option<'model => '
   let (store, dispatch) = useApp()
   ```
 */
-let brew: (brewConfig<'model, 'msg, 'cmd>) => (unit => (store<'model>, 'msg => unit)) = (config: brewConfig<'model, 'msg, 'cmd>) => {
+let brew: (brewConfig<'model, 'msg, 'cmd, 'chrono>) => (unit => (store<'model>, 'msg => unit)) = (config: brewConfig<'model, 'msg, 'cmd, 'chrono>) => {
   let storeRef: ref<option<Zustand_.rawStore>> = ref(None)
 
   let ensureStore = () => {
@@ -260,14 +279,49 @@ let brew: (brewConfig<'model, 'msg, 'cmd>) => (unit => (store<'model>, 'msg => u
     | Some(s) => s
     | None => {
       let (initialModel, initialCmd) = config.init
-      let initializer = ((set: (Zustand_.reduxStoreState<'model,'msg,'cmd> => Zustand_.reduxStoreState<'model,'msg,'cmd>) => unit), (_get: unit => Zustand_.reduxStoreState<'model,'msg,'cmd>), (_api: Zustand_.storeApi<Zustand_.reduxStoreState<'model,'msg,'cmd>>)) => {
-        let storeState: Zustand_.reduxStoreState<'model,'msg,'cmd> = {
+      let initializer = ((set: (Zustand_.reduxStoreState<'model,'msg,'cmd, 'chrono> => Zustand_.reduxStoreState<'model,'msg,'cmd,'chrono>) => unit), (_get: unit => Zustand_.reduxStoreState<'model,'msg,'cmd,'chrono>), (_api: Zustand_.storeApi<Zustand_.reduxStoreState<'model,'msg,'cmd,'chrono>>)) => {
+      /* create a chrono tracker that can perform in-place sets by calling setSnapshotModel
+        Respect brewConfig.opts.chrono: only push snapshots when enabled and honor `max` if provided */
+      let setSnapshotModel = (m: 'model) => set((curr: Zustand_.reduxStoreState<'model,'msg,'cmd,'chrono>) => {...curr, state: m})
+
+      let chronoEnabled: bool = switch config.opts {
+      | Some(opts) => switch opts.chrono { 
+          | Some(c) => switch c.enabled { | Some(b) => b | None => false }
+          | None => false 
+        }
+      | None => false
+      }
+
+      let chronoMax: option<int> = switch config.opts {
+      | Some(opts) => switch opts.chrono { | Some(c) => c.max | None => None }
+      | None => None
+      }
+
+      let chronoInstance = if chronoEnabled { Chrono.create(initialModel, setSnapshotModel) } else { Chrono.noop(initialModel, setSnapshotModel) }
+      let chronoObj: Chrono.chronoApi<'model> = chronoInstance
+        let storeState: Zustand_.reduxStoreState<'model,'msg,'cmd,'chrono> = {
           state: initialModel,
           command: initialCmd,
-          dispatch: (action) => set((current: Zustand_.reduxStoreState<'model,'msg,'cmd>) => {
+          dispatch: (action) => set((current: Zustand_.reduxStoreState<'model,'msg,'cmd,'chrono>) => {
             let (newState, newCmd) = config.update(current.state, action)
+            /* push snapshot to chrono and trim history to `max` when provided */
+            chronoObj.push(newState)
+            switch chronoMax {
+            | Some(max) => {
+              let len = Belt.Array.length(chronoObj.history.contents)
+              if len > max {
+                /* keep last `max` entries */
+                chronoObj.history.contents = Belt.Array.slice(chronoObj.history.contents, ~offset=len - max, ~len=max)
+                chronoObj.index.contents = Belt.Array.length(chronoObj.history.contents) - 1
+              } else {
+                ()
+              }
+            }
+            | None => ()
+            }
             {...current, state: newState, command: newCmd}
-          })
+          }),
+          chrono: chronoObj,
         }
         storeState
       }
@@ -276,11 +330,11 @@ let brew: (brewConfig<'model, 'msg, 'cmd>) => (unit => (store<'model>, 'msg => u
   let s = Zustand_.create(enhancedInit)
 
       switch config.run { | Some(runFn) => {
-        let state0: Zustand_.reduxStoreState<'model,'msg,'cmd> = Obj.magic(Zustand_.getState(s))
+        let state0: Zustand_.reduxStoreState<'model,'msg,'cmd, 'chrono> = Obj.magic(Zustand_.getState(s))
         let prevCmdRef = ref(state0.command)
         runFn(state0.command, state0.dispatch)->ignore
         let _unsub = Zustand_.subscribe(s, st => {
-          let stTyped: Zustand_.reduxStoreState<'model,'msg,'cmd> = Obj.magic(st)
+          let stTyped: Zustand_.reduxStoreState<'model,'msg,'cmd, 'chrono> = Obj.magic(st)
           if stTyped.command != prevCmdRef.contents {
             prevCmdRef.contents = stTyped.command
             runFn(stTyped.command, stTyped.dispatch)->ignore
@@ -291,7 +345,7 @@ let brew: (brewConfig<'model, 'msg, 'cmd>) => (unit => (store<'model>, 'msg => u
 
       switch config.subs {
       | Some(subsFn) => {
-        let getModel = () => (Obj.magic(Zustand_.getState(s)): Zustand_.reduxStoreState<'model,'msg,'cmd>).state
+        let getModel = () => (Obj.magic(Zustand_.getState(s)): Zustand_.reduxStoreState<'model,'msg,'cmd, 'chrono>).state
 
         let prevMapRef: ref<Js.Dict.t<unit => unit>> = ref(Js.Dict.empty())
 
@@ -330,11 +384,11 @@ let brew: (brewConfig<'model, 'msg, 'cmd>) => (unit => (store<'model>, 'msg => u
           prevMapRef.contents = nextMap
         }
 
-        let stateNow: Zustand_.reduxStoreState<'model,'msg,'cmd> = Obj.magic(Zustand_.getState(s))
+        let stateNow: Zustand_.reduxStoreState<'model,'msg,'cmd, 'chrono> = Obj.magic(Zustand_.getState(s))
         syncForModel(stateNow.state, stateNow.dispatch)
 
         let _unsub = Zustand_.subscribe(s, st => {
-          let stTyped: Zustand_.reduxStoreState<'model,'msg,'cmd> = Obj.magic(st)
+          let stTyped: Zustand_.reduxStoreState<'model,'msg,'cmd, 'chrono> = Obj.magic(st)
           syncForModel(stTyped.state, stTyped.dispatch)
         })
       }
@@ -352,7 +406,7 @@ let brew: (brewConfig<'model, 'msg, 'cmd>) => (unit => (store<'model>, 'msg => u
    /* Coerce the raw Zustand instance into the public typed store that exposes `.state`.
      This localized Obj.magic keeps the rest of the codebase ergonomic (store.state). */
    let publicStore: store<'model> = Obj.magic(store)
-   let dispatch = Zustand_.useStore(store, (st: Zustand_.reduxStoreState<'model, 'msg, 'cmd>) => st.dispatch)
+   let dispatch = Zustand_.useStore(store, (st: Zustand_.reduxStoreState<'model, 'msg, 'cmd, 'chrono>) => st.dispatch)
     (publicStore, dispatch)
   }
 
@@ -396,7 +450,7 @@ type pourOptions<'parentModel,'parentMsg,'subModel,'subMsg> = {
 let pour = (useInstanceHook: unit => (store<'parentModel>, 'parentMsg => unit), opts: pourOptions<'parentModel,'parentMsg,'subModel,'subMsg>) => {
   let useP = () => {
     let (store, dispatch) = useInstanceHook()
-    let filtered: filteredStore<'subModel,'subMsg,'cmd> = makeFilteredStore(store, Some(opts.filter), Some(opts.infuse))
+    let filtered: filteredStore<'subModel,'subMsg,'cmd, 'chrono> = makeFilteredStore(store, Some(opts.filter), Some(opts.infuse))
     let wrappedStore: store<'subModel> = Obj.magic(filtered)
     let wrappedDispatch = (subMsg) => dispatch(opts.infuse(subMsg))
     (wrappedStore, wrappedDispatch)
