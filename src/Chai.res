@@ -182,7 +182,14 @@ type brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono> = {
 */
 type store<'model> = Zustand_.store<'model>
 
-type storeHook<'model,'msg> = unit => (store<'model>, 'msg => unit)
+/* A brewed hook by default returns the tracked state, the dispatch, and the raw store.
+  Shape: unit => (state, dispatch, store). The `state` here is the proxied tracked
+  model (not the raw Zustand store). The raw store is returned to allow `pour` and
+  other helpers to build filtered stores or access chrono without a global registry. */
+/* A brewed hook optionally accepts a named init callback `~init` which returns a
+  `msg` to be dispatched when the component mounts. Shape:
+  (~init: unit => msg)=? => (state, dispatch, rawStore) */
+type storeHook<'model,'msg> = (~init: (unit => 'msg)=?) => ('model, 'msg => unit, Zustand_.rawStore)
 
 /** Options passed to the generated hook when scoping to a sub-model.
 
@@ -216,10 +223,6 @@ type hookOptions<'model, 'msg, 'subModel, 'subMsg> = {
 let select = (store: store<'model>, selector) =>
   Zustand_.useStore(Obj.magic(store), (storeState: Zustand_.reduxStoreState<'model, 'msg, 'cmd, 'chrono>) => selector(storeState.state))
 
-let chrono = (store: store<'model>, selector): Chrono.chronoApi<'model> => {
-   Zustand_.useStore(Obj.magic(store), (storeState: Zustand_.reduxStoreState<'model, 'msg, 'cmd, 'chrono>) => selector(storeState.chrono))
-}
-
 /* Helper proxy factory is implemented in JS helper `src/utils/proxify.js`.
   We expose the proxify function (default export) from that module below.
 */
@@ -242,26 +245,26 @@ type filteredStore<'subModel, 'subMsg, 'cmd, 'chrono> = {. "getState": unit => Z
   let (s, dispatch) = (Obj.magic(filtered), filtered["getState"]())
   ```
 */
-let makeFilteredStore = (origStore: store<'model>, filterOpt: option<'model => 'subModel>, infuseOpt: option<'subMsg => 'msg>): filteredStore<'subModel,'subMsg,'cmd, 'chrono> => {
+let makeFilteredStore = (origStore: store<'model>, filterOpt: 'model => 'subModel, infuseOpt: 'subMsg => 'parentMsg): filteredStore<'subModel,'subMsg,'cmd, 'chrono> => {
     /* getState returns a fully-typed reduxStoreState for the submodel/submsg */
-    let getState: unit => Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd, 'chrono> = () => {
-          /* get the underlying Zustand state; we don't know the parent's msg/cmd
-              types here at the Chai API-level, so cast into the typed shape we need */
-          let s: Zustand_.reduxStoreState<'model, 'msg, 'cmd, 'chrono> = Obj.magic(Zustand_.getState(Obj.magic(origStore)))
-        let statePart: 'subModel = switch filterOpt { | Some(f) => f(s.state) | None => Obj.magic(s.state) }
-        let dispatchPart: 'subMsg => unit = switch infuseOpt { | Some(inf) => (subMsg) => s.dispatch(inf(subMsg)) | None => (subMsg) => s.dispatch(Obj.magic(subMsg)) }
-        {state: statePart, dispatch: dispatchPart, command: s.command, chrono: s.chrono}
-    }
+  let getState: unit => Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd, 'chrono> = () => {
+      /* get the underlying Zustand state; we don't know the parent's msg/cmd
+        types here at the Chai API-level, so cast into the typed shape we need */
+      let s: Zustand_.reduxStoreState<'model, 'parentMsg, 'cmd, 'chrono> = Obj.magic(Zustand_.getState(Obj.magic(origStore)))
+      let statePart: 'subModel =  filterOpt(s.state)
+      let dispatchPart: 'subMsg => unit = (subMsg) => s.dispatch(infuseOpt(subMsg))
+      {state: statePart, dispatch: dispatchPart, command: s.command, chrono: s.chrono}
+  }
 
     /* subscribe accepts a listener that receives the typed sub-model state */
-    let subscribe: (Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd, 'chrono> => unit) => (unit => unit) = (listener) => {
-    let unsub = Zustand_.subscribe(Obj.magic(origStore), (s: Zustand_.reduxStoreState<'model, 'msg, 'cmd, 'chrono>) => {
-            let statePart: 'subModel = switch filterOpt { | Some(f) => f(s.state) | None => Obj.magic(s.state) }
-            let dispatchPart: 'subMsg => unit = switch infuseOpt { | Some(inf) => (subMsg) => s.dispatch(inf(subMsg)) | None => (subMsg) => s.dispatch(Obj.magic(subMsg)) }
-            listener({state: statePart, dispatch: dispatchPart, command: s.command, chrono: s.chrono})
-        })
-        unsub
-    }
+  let subscribe: (Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd, 'chrono> => unit) => (unit => unit) = (listener) => {
+    let unsub = Zustand_.subscribe(Obj.magic(origStore), (s: Zustand_.reduxStoreState<'model, 'parentMsg, 'cmd, 'chrono>) => {
+    let statePart: 'subModel = filterOpt(s.state)
+    let dispatchPart: 'subMsg => unit = (subMsg) => s.dispatch(infuseOpt(subMsg)) 
+        listener({state: statePart, dispatch: dispatchPart, command: s.command, chrono: s.chrono})
+    })
+    unsub
+  }
 
     {"getState": getState, "subscribe": subscribe}
 }
@@ -275,18 +278,32 @@ let makeFilteredStore = (origStore: store<'model>, filterOpt: option<'model => '
    binding. Then we pass that hook into `createTrackedSelector` to obtain
    a proxy-tracking hook that only re-renders when accessed properties change.
 */
-let track = (useInstance: unit => (store<'model>, 'd => unit)) => {
-  let (store, dispatch) = useInstance()
-  let useStateFromStore = (selector) => Zustand_.useStore(Obj.magic(store), (storeState: Zustand_.reduxStoreState<'model, 'msg, 'cmd, 'chrono>) => selector(storeState.state))
-  /* createTrackedSelector returns a hook (unit => selected). Call it to get the proxied state */
-  let useTracked = Tracked_.createTrackedSelector(useStateFromStore)
-  let state: 'model = useTracked()
-  (state, dispatch)
+let track = (useInstance: (~init: (unit => 'd)=?) => (store<'model>, 'd => unit, Zustand_.rawStore)) => {
+  /* Return a hook that accepts an optional init callback which will be run once
+     on mount; if provided it returns a `d` message which we dispatch. */
+  let useTrackedInstance = (~init=?) => {
+    let triple = switch init {
+    | Some(cb) => useInstance(~init=cb)
+    | None => useInstance()
+    }
+    let (_publicStore, dispatch, rawStore) = triple
+    let rawToUse = Obj.magic(rawStore)
+    let useStateFromStore = (selector) =>
+      Zustand_.useStore(rawToUse, (storeState: Zustand_.reduxStoreState<'model, 'd, 'cmd, 'chrono>) => selector(storeState.state))
+    let useTracked = Tracked_.createTrackedSelector(useStateFromStore)
+    let state: 'model = useTracked()
+    switch init {
+    | Some(cb) => React.useEffect0(() => { dispatch(cb()); None })
+    | None => ()
+    }
+    (state, dispatch, rawStore)
+  }
+  useTrackedInstance
 }
 
 /**
   Create a lazily-initialized MVU-backed store and return a hook to access it.
-  The returned hook creates the singleton store on first call and returns `(store<'model>, dispatch)`.
+  The returned hook creates the singleton store on first call and by default returns the tracked `(state, dispatch)` pair.
   If `config.run` is provided it is invoked whenever the store command value changes.
   If `config.subs` is provided subscriptions are evaluated and diffed by deterministic key to start and stop them.
 
@@ -295,7 +312,7 @@ let track = (useInstance: unit => (store<'model>, 'd => unit)) => {
   let (store, dispatch) = useApp()
   ```
 */
-let brew: (brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => (unit => (store<'model>, 'msg => unit)) = (config: brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => {
+let brew: (brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => storeHook<'model,'msg> = (config: brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => {
   let storeRef: ref<option<Zustand_.rawStore>> = ref(None)
 
   let ensureStore = () => {
@@ -470,12 +487,8 @@ let brew: (brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => (unit => (store<'mo
       | None => ()
       }
 
-      /* register store + chrono keyed by dispatch so tracked default hooks
-         can still opt-in to rawStore/chrono via the registry without
-         duplicating the raw store. */
-      let state0: Zustand_.reduxStoreState<'model,'msg,'cmd, 'chrono> = Obj.magic(Zustand_.getState(s))
-      /* dispatch identity is stable; register it */
-      Registry.register(state0.dispatch, s, Obj.magic(s)["chrono"])
+      /* No global registry: callers receive the raw Zustand store directly
+        from `brew` so helpers like `pour` can construct filtered stores. */
       storeRef.contents = Some(s)
       s
     }
@@ -483,14 +496,18 @@ let brew: (brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => (unit => (store<'mo
   }
 
 
-  let useInstance = () => {
-   let store = ensureStore()
-   /* Coerce the raw Zustand instance into the public typed store that exposes `.state`.
-     This localized Obj.magic keeps the rest of the codebase ergonomic (store.state). */
-   let publicStore: store<'model> = Obj.magic(store)
-   let dispatch = Zustand_.useStore(store, (st: Zustand_.reduxStoreState<'model, 'msg, 'cmd, 'chrono>) => st.dispatch)
-    (publicStore, dispatch)
+  /* raw useInstance returns the public store object and the dispatch; we
+     wrap that with `track` to return the proxied state by default. */
+  let rawUseInstance = (~init=?) => {
+   let s = ensureStore()
+   let publicStore: store<'model> = Obj.magic(s)
+   let dispatch = Zustand_.useStore(s, (st: Zustand_.reduxStoreState<'model, 'msg, 'cmd, 'chrono>) => st.dispatch)
+   /* Return the public proxied store plus the underlying raw Zustand store for advanced use */
+    (publicStore, dispatch, s)
   }
+
+  /* Tracked default: call `track` with the rawUseInstance hook. */
+  let useInstance = track(rawUseInstance)
 
   useInstance
 }
@@ -520,30 +537,47 @@ type pourOptions<'parentModel,'parentMsg,'subModel,'subMsg> = {
 
 /**
   Use on a brewed `useInstance` hook to scope it to a typed sub-model view.
-  Returns a hook which produces `(store<subModel>, dispatch)`.
-  Dispatch accepts `subMsg` values.
-  Useful for preventing components from accessing parts of the parent model or dispatching unrelated messages.
+  Returns a hook which produces `(state, dispatch, store)` where `state` is the
+  tracked proxied sub-model, `dispatch` accepts `subMsg` values and `store` is
+  the underlying raw parent Zustand store (exposed for advanced use).
 
   ```rescript
   let useCounter = pour(useApp, {filter: m => m.counter, infuse: msg => CounterMsg(msg)})
-  let (store, dispatch) = useCounter()
+  let (state, dispatch, store) = useCounter()
   ```
 */
-let pour = (useInstanceHook: unit => (store<'parentModel>, 'parentMsg => unit), opts: pourOptions<'parentModel,'parentMsg,'subModel,'subMsg>) => {
-  let useP = () => {
-    let (store, dispatch) = useInstanceHook()
-    /* Prefer registry lookup by dispatch to obtain the raw store if available.
-       This keeps `useInstance` ergonomic while allowing `pour` to have the
-       raw store for typed projections. */
-    let rawOpt = Registry.lookup(dispatch)
-    let filtered: filteredStore<'subModel,'subMsg,'cmd, 'chrono> = switch rawOpt {
-    | Some((rawStore, _chrono)) => makeFilteredStore(Obj.magic(rawStore), Some(opts.filter), Some(opts.infuse))
-    | None => makeFilteredStore(store, Some(opts.filter), Some(opts.infuse))
+let pour: (storeHook<'parentModel, 'parentMsg>, pourOptions<'parentModel, 'parentMsg, 'subModel, 'subMsg>) => storeHook<'subModel, 'subMsg> = (useInstanceHook, opts) => {
+  let useP = (~init=?) => {
+   /* `useInstanceHook` returns (parentState, parentDispatch, rawStore).
+     We build a tracked selector that reads the parent raw store but projects
+     into the sub-model using the provided `filter`. This avoids trying to
+     coerce a runtime filtered object into the static `store<'subModel>`
+     type which previously caused Obj.magic mismatches. */
+  /* Map optional sub-model init callback into an optional parent-model init
+    callback using `infuse`, then call the parent instance with that opt. */
+
+  let (_parentState, parentDispatch, rawStore) = useInstanceHook()
+
+    /* Create a useStateFromStore that selects the projected sub-model from
+       the parent reduxStoreState and feed it to createTrackedSelector. */
+    let rawToUse = Obj.magic(rawStore)
+    let useStateFromStore = (selector) =>
+      Zustand_.useStore(rawToUse, (storeState: Zustand_.reduxStoreState<'parentModel, 'parentMsg, 'cmd, 'chrono>) => selector(opts.filter(storeState.state)))
+
+    let useTracked = Tracked_.createTrackedSelector(useStateFromStore)
+    let state: 'subModel = useTracked()
+
+    let dispatch: 'subMsg => unit = (subMsg) => parentDispatch(opts.infuse(subMsg))
+
+    /* If the caller passed an onInit callback, dispatch the infused message on mount. */
+    switch init {
+    | Some(cb) => React.useEffect0(() => { parentDispatch(opts.infuse(cb())); None })
+    | None => ()
     }
-    let wrappedStore: store<'subModel> = Obj.magic(filtered)
-    let wrappedDispatch = (subMsg) => dispatch(opts.infuse(subMsg))
-    (wrappedStore, wrappedDispatch)
+
+    (state, dispatch, rawStore)
   }
+
   useP
 }
 
@@ -566,3 +600,15 @@ let persist = Zustand_.persist
   ```
 */
 let devtools = Zustand_.devtools
+
+/*
+  Helper to retrieve the chrono API from a brewed or poured hook's raw store.
+  Usage:
+    let (_, _, raw) = useApp()
+    let chrono = Chai.chronoFrom(raw)
+  or when you have a public `store<'model>`: Chai.chronoFrom(Obj.magic(publicStore))
+*/
+let chrono = (rawStore: Zustand_.rawStore) : Chrono.chronoApi<'a> => {
+  let s: Zustand_.reduxStoreState<'a, 'msg, 'cmd, 'chrono> = Obj.magic(Zustand_.getState(Obj.magic(rawStore)))
+  s.chrono
+}
