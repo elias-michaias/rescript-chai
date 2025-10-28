@@ -84,13 +84,15 @@ type createFn<'s> = (Zustand_.initializer<'s> => Zustand_.rawStore)
 */
 type createWrapperForCreate<'s> = createFn<'s> => createFn<'s>
 
-type brewConfigOptsChrono = {
+type brewConfigOptsChrono<'model, 'sub> = {
   enabled?: bool,
   max?: int,
+  filter?: 'model => 'sub,
+  apply?: 'sub => ('model => 'model),
 }
 
-type brewConfigOpts = {
-  chrono?: brewConfigOptsChrono
+type brewConfigOpts<'model, 'sub> = {
+  chrono?: brewConfigOptsChrono<'model, 'sub>
 }
 
 /** Configuration record for `Chai.brew`.
@@ -108,7 +110,7 @@ type brewConfigOpts = {
   let useApp = brew(cfg)
   ```
 */
-type brewConfig<'model, 'msg, 'cmd, 'chrono> = {
+type brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono> = {
   /** Pure reducer that returns a new model and a command.
 
   ```rescript
@@ -167,7 +169,7 @@ type brewConfig<'model, 'msg, 'cmd, 'chrono> = {
   */
   subs?: 'model => array<option<Sub.subscription<'model,'msg>>>,
 
-  opts?: brewConfigOpts,
+  opts?: brewConfigOpts<'model, 'sub>,
 }
 
 /**
@@ -271,7 +273,7 @@ let makeFilteredStore = (origStore: store<'model>, filterOpt: option<'model => '
   let (store, dispatch) = useApp()
   ```
 */
-let brew: (brewConfig<'model, 'msg, 'cmd, 'chrono>) => (unit => (store<'model>, 'msg => unit)) = (config: brewConfig<'model, 'msg, 'cmd, 'chrono>) => {
+let brew: (brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => (unit => (store<'model>, 'msg => unit)) = (config: brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => {
   let storeRef: ref<option<Zustand_.rawStore>> = ref(None)
 
   let ensureStore = () => {
@@ -297,15 +299,62 @@ let brew: (brewConfig<'model, 'msg, 'cmd, 'chrono>) => (unit => (store<'model>, 
       | None => None
       }
 
-      let chronoInstance = if chronoEnabled { Chrono.create(initialModel, setSnapshotModel) } else { Chrono.noop(initialModel, setSnapshotModel) }
-      let chronoObj: Chrono.chronoApi<'model> = chronoInstance
+    /* Detect at runtime whether the user provided a projection and an apply
+       function. ReScript's type inference can sometimes unify the sub-model
+       generic with the parent model, which blocks creating a statically-typed
+       projected chrono here. To keep behavior correct we detect projection
+       presence at runtime and wire the user functions into the chrono using
+       Obj.magic. This preserves the runtime semantics the caller expects. */
+    let chronoIsProjectedRef: ref<bool> = ref(false)
+    let chronoFilterRawRef: ref<option<'a>> = ref(None)
+    let chronoApplyRawRef: ref<option<'b>> = ref(None)
+
+    let chronoInstance = switch config.opts {
+    | Some(opts) => switch opts.chrono {
+      | Some(c) => {
+          switch (c.filter, c.apply) {
+          | (Some(f), Some(a)) => {
+              /* stash raw functions for runtime use */
+              chronoIsProjectedRef.contents = true
+              chronoFilterRawRef.contents = Some(Obj.magic(f))
+              chronoApplyRawRef.contents = Some(Obj.magic(a))
+
+              /* setProjected applies a projected snapshot back into the parent model */
+              let setProjected = (snap) => {
+                set((curr: Zustand_.reduxStoreState<'model,'msg,'cmd,'chrono>) => {
+                  let parentNow = curr.state
+                  /* applyRaw has runtime shape: snap -> parent -> parent */
+                  let applyRaw = Obj.magic(a)
+                  let updatedParent = applyRaw(snap)(parentNow)
+                  {...curr, state: updatedParent}
+                })
+              }
+              Chrono.createProjected(initialModel, Obj.magic(f), setProjected)
+            }
+          | _ => if chronoEnabled { Chrono.create(initialModel, setSnapshotModel) } else { Chrono.noop(initialModel, setSnapshotModel) }
+          }
+      }
+      | None => if chronoEnabled { Chrono.create(initialModel, setSnapshotModel) } else { Chrono.noop(initialModel, setSnapshotModel) }
+    }
+    | None => if chronoEnabled { Chrono.create(initialModel, setSnapshotModel) } else { Chrono.noop(initialModel, setSnapshotModel) }
+    }
+
+    let chronoObj: Chrono.chronoApi<'model> = Obj.magic(chronoInstance)
         let storeState: Zustand_.reduxStoreState<'model,'msg,'cmd,'chrono> = {
           state: initialModel,
           command: initialCmd,
           dispatch: (action) => set((current: Zustand_.reduxStoreState<'model,'msg,'cmd,'chrono>) => {
             let (newState, newCmd) = config.update(current.state, action)
-            /* push snapshot to chrono and trim history to `max` when provided */
-            chronoObj.push(newState)
+            /* push snapshot to chrono: if a projection was provided, apply it
+               at runtime via the stashed raw filter; otherwise push the full model */
+            if chronoIsProjectedRef.contents {
+              switch chronoFilterRawRef.contents {
+              | Some(rawF) => chronoObj.push(Obj.magic(rawF)(newState))
+              | None => chronoObj.push(newState)
+              }
+            } else {
+              chronoObj.push(newState)
+            }
             switch chronoMax {
             | Some(max) => {
               let len = Belt.Array.length(chronoObj.history.contents)

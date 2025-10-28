@@ -102,14 +102,67 @@ function brew(config) {
       } else {
         chronoMax = undefined;
       }
-      var chronoInstance = chronoEnabled ? Chrono.create(initialModel, setSnapshotModel) : Chrono.noop(initialModel, setSnapshotModel);
+      var chronoIsProjectedRef = {
+        contents: false
+      };
+      var chronoFilterRawRef = {
+        contents: undefined
+      };
+      var chronoApplyRawRef;
+      var opts$2 = config.opts;
+      var chronoInstance;
+      if (opts$2 !== undefined) {
+        var c$2 = opts$2.chrono;
+        if (c$2 !== undefined) {
+          var match = c$2.filter;
+          var match$1 = c$2.apply;
+          var exit = 0;
+          if (match !== undefined && match$1 !== undefined) {
+            chronoIsProjectedRef.contents = true;
+            chronoFilterRawRef.contents = Caml_option.some(match);
+            chronoApplyRawRef = Caml_option.some(match$1);
+            var setProjected = function (snap) {
+              set(function (curr) {
+                    var parentNow = curr.state;
+                    var updatedParent = match$1(snap)(parentNow);
+                    return {
+                            state: updatedParent,
+                            dispatch: curr.dispatch,
+                            command: curr.command,
+                            chrono: curr.chrono
+                          };
+                  });
+            };
+            chronoInstance = Chrono.createProjected(initialModel, match, setProjected);
+          } else {
+            exit = 1;
+          }
+          if (exit === 1) {
+            chronoInstance = chronoEnabled ? Chrono.create(initialModel, setSnapshotModel) : Chrono.noop(initialModel, setSnapshotModel);
+          }
+          
+        } else {
+          chronoInstance = chronoEnabled ? Chrono.create(initialModel, setSnapshotModel) : Chrono.noop(initialModel, setSnapshotModel);
+        }
+      } else {
+        chronoInstance = chronoEnabled ? Chrono.create(initialModel, setSnapshotModel) : Chrono.noop(initialModel, setSnapshotModel);
+      }
       return {
               state: initialModel,
               dispatch: (function (action) {
                   set(function (current) {
                         var match = config.update(current.state, action);
                         var newState = match[0];
-                        chronoInstance.push(newState);
+                        if (chronoIsProjectedRef.contents) {
+                          var rawF = chronoFilterRawRef.contents;
+                          if (rawF !== undefined) {
+                            chronoInstance.push(Caml_option.valFromOption(rawF)(newState));
+                          } else {
+                            chronoInstance.push(newState);
+                          }
+                        } else {
+                          chronoInstance.push(newState);
+                        }
                         if (chronoMax !== undefined) {
                           var len = chronoInstance.history.contents.length;
                           if (len > chronoMax) {

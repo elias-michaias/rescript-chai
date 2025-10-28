@@ -119,8 +119,57 @@ function noop(_initialModel, _setSnapshot) {
         };
 }
 
+function createProjected(initialModel, filter, setProjected) {
+  var initialSnap = filter(initialModel);
+  return create(initialSnap, setProjected);
+}
+
+function noopProjected(_initialModel, _filter, _setProjected) {
+  var history = {
+    contents: []
+  };
+  var index = {
+    contents: -1
+  };
+  var push = function (_m) {
+    
+  };
+  var undo = function () {
+    
+  };
+  var redo = function () {
+    
+  };
+  var $$goto = function (_idx) {
+    
+  };
+  var clear = function () {
+    history.contents = [];
+    index.contents = -1;
+  };
+  var reset = function () {
+    
+  };
+  var getSnapshot = function (_idx) {
+    
+  };
+  return {
+          history: history,
+          index: index,
+          push: push,
+          undo: undo,
+          redo: redo,
+          goto: $$goto,
+          clear: clear,
+          reset: reset,
+          getSnapshot: getSnapshot
+        };
+}
+
 export {
   create ,
   noop ,
+  createProjected ,
+  noopProjected ,
 }
 /* No side effect */

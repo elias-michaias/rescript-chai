@@ -70,3 +70,36 @@ let noop = (_initialModel: 'model, _setSnapshot: 'model => unit): chronoApi<'mod
   let getSnapshot = (_idx: int) => None
   { history: history, index: index, push: push, undo: undo, redo: redo, goto: goto, clear: clear, reset: reset, getSnapshot: getSnapshot }
 }
+
+/* Create a chrono that records snapshots of a projected sub-model.
+   `filter` projects the parent model into a snapshot value. `setProjected`
+   is a closure provided by the caller that knows how to apply a sub-snapshot
+   back into the parent model (for example by reading the current parent
+   model and returning an updated parent). This keeps the Chrono module
+   generic and avoids reading parent state itself.
+*/
+let createProjected = (
+  initialModel: 'parent,
+  filter: 'parent => 'snap,
+  setProjected: 'snap => unit,
+): chronoApi<'snap> => {
+  let initialSnap = filter(initialModel)
+  create(initialSnap, setProjected)
+}
+
+let noopProjected = (
+  _initialModel: 'parent,
+  _filter: 'parent => 'snap,
+  _setProjected: 'snap => unit,
+): chronoApi<'snap> => {
+  let history: ref<array<'snap>> = ref([])
+  let index: ref<int> = ref(-1)
+  let push = (_m: 'snap) => ()
+  let undo = () => ()
+  let redo = () => ()
+  let goto = (_idx: int) => ()
+  let clear = () => { history.contents = []; index.contents = -1 }
+  let reset = () => ()
+  let getSnapshot = (_idx: int) => None
+  { history: history, index: index, push: push, undo: undo, redo: redo, goto: goto, clear: clear, reset: reset, getSnapshot: getSnapshot }
+}
