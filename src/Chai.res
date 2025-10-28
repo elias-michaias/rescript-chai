@@ -242,24 +242,28 @@ type filteredStore<'subModel, 'subMsg, 'cmd, 'chrono> = {. "getState": unit => Z
   let (s, dispatch) = (Obj.magic(filtered), filtered["getState"]())
   ```
 */
-let makeFilteredStore = (origStore: store<'model>, filterOpt: option<'model => 'subModel>, infuseOpt: option<'subMsg => 'msg>): filteredStore<'subModel,'subMsg,'cmd,'chrono> => {
-  let getState: unit => Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd, 'chrono> = () => {
-    let s: Zustand_.reduxStoreState<'model, 'msg, 'cmd, 'chrono> = Obj.magic(Zustand_.getState(Obj.magic(origStore)))
-    let statePart: 'subModel = switch filterOpt { | Some(f) => f(s.state) | None => Obj.magic(s.state) }
-    let dispatchPart: 'subMsg => unit = switch infuseOpt { | Some(inf) => (subMsg) => s.dispatch(inf(subMsg)) | None => (subMsg) => s.dispatch(Obj.magic(subMsg)) }
-    {state: statePart, dispatch: dispatchPart, command: s.command, chrono: s.chrono}
-  }
+let makeFilteredStore = (origStore: store<'model>, filterOpt: option<'model => 'subModel>, infuseOpt: option<'subMsg => 'msg>): filteredStore<'subModel,'subMsg,'cmd, 'chrono> => {
+    /* getState returns a fully-typed reduxStoreState for the submodel/submsg */
+    let getState: unit => Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd, 'chrono> = () => {
+          /* get the underlying Zustand state; we don't know the parent's msg/cmd
+              types here at the Chai API-level, so cast into the typed shape we need */
+          let s: Zustand_.reduxStoreState<'model, 'msg, 'cmd, 'chrono> = Obj.magic(Zustand_.getState(Obj.magic(origStore)))
+        let statePart: 'subModel = switch filterOpt { | Some(f) => f(s.state) | None => Obj.magic(s.state) }
+        let dispatchPart: 'subMsg => unit = switch infuseOpt { | Some(inf) => (subMsg) => s.dispatch(inf(subMsg)) | None => (subMsg) => s.dispatch(Obj.magic(subMsg)) }
+        {state: statePart, dispatch: dispatchPart, command: s.command, chrono: s.chrono}
+    }
 
-  let subscribe: (Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd, 'chrono> => unit) => (unit => unit) = (listener) => {
+    /* subscribe accepts a listener that receives the typed sub-model state */
+    let subscribe: (Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd, 'chrono> => unit) => (unit => unit) = (listener) => {
     let unsub = Zustand_.subscribe(Obj.magic(origStore), (s: Zustand_.reduxStoreState<'model, 'msg, 'cmd, 'chrono>) => {
-      let statePart: 'subModel = switch filterOpt { | Some(f) => f(s.state) | None => Obj.magic(s.state) }
-      let dispatchPart: 'subMsg => unit = switch infuseOpt { | Some(inf) => (subMsg) => s.dispatch(inf(subMsg)) | None => (subMsg) => s.dispatch(Obj.magic(subMsg)) }
-      listener({state: statePart, dispatch: dispatchPart, command: s.command, chrono: s.chrono})
-    })
-    unsub
-  }
+            let statePart: 'subModel = switch filterOpt { | Some(f) => f(s.state) | None => Obj.magic(s.state) }
+            let dispatchPart: 'subMsg => unit = switch infuseOpt { | Some(inf) => (subMsg) => s.dispatch(inf(subMsg)) | None => (subMsg) => s.dispatch(Obj.magic(subMsg)) }
+            listener({state: statePart, dispatch: dispatchPart, command: s.command, chrono: s.chrono})
+        })
+        unsub
+    }
 
-  {"getState": getState, "subscribe": subscribe}
+    {"getState": getState, "subscribe": subscribe}
 }
 
 /* Create a tracked instance hook from a brewed useInstance hook.
@@ -271,16 +275,13 @@ let makeFilteredStore = (origStore: store<'model>, filterOpt: option<'model => '
    binding. Then we pass that hook into `createTrackedSelector` to obtain
    a proxy-tracking hook that only re-renders when accessed properties change.
 */
-let makeTrackedInstanceHook = (useInstance: unit => (store<'model>, 'd => unit)) => {
-  let useTracked = () => {
-    let (store, dispatch) = useInstance()
-    /* build a hook that reads the current state's `.state` via zustand */
-    let useStateFromStore = () => select(store, (s) => s)
-    let useTrackedState = Tracked_.createTrackedSelector(useStateFromStore)
-    let state = useTrackedState()
-    (state, dispatch)
-  }
-  useTracked
+let track = (useInstance: unit => (store<'model>, 'd => unit)) => {
+  let (store, dispatch) = useInstance()
+  let useStateFromStore = (selector) => Zustand_.useStore(Obj.magic(store), (storeState: Zustand_.reduxStoreState<'model, 'msg, 'cmd, 'chrono>) => selector(storeState.state))
+  /* createTrackedSelector returns a hook (unit => selected). Call it to get the proxied state */
+  let useTracked = Tracked_.createTrackedSelector(useStateFromStore)
+  let state: 'model = useTracked()
+  (state, dispatch)
 }
 
 /**
@@ -294,7 +295,7 @@ let makeTrackedInstanceHook = (useInstance: unit => (store<'model>, 'd => unit))
   let (store, dispatch) = useApp()
   ```
 */
-let brew: (brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => (unit => ('model, 'msg => unit)) = (config: brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => {
+let brew: (brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => (unit => (store<'model>, 'msg => unit)) = (config: brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => {
   let storeRef: ref<option<Zustand_.rawStore>> = ref(None)
 
   let ensureStore = () => {
@@ -485,7 +486,7 @@ let brew: (brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => (unit => ('model, '
     (publicStore, dispatch)
   }
 
-  makeTrackedInstanceHook(useInstance)
+  useInstance
 }
 
 /** Options for `Chai.pour` to produce a sub-view of the core MVU loop from a brewed `useInstance` hook.

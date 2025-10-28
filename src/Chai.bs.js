@@ -59,22 +59,20 @@ function makeFilteredStore(origStore, filterOpt, infuseOpt) {
         };
 }
 
-function makeTrackedInstanceHook(useInstance) {
-  return function () {
-    var match = useInstance();
-    var store = match[0];
-    var useStateFromStore = function () {
-      return select(store, (function (s) {
-                    return s;
-                  }));
-    };
-    var useTrackedState = ReactTracked.createTrackedSelector(useStateFromStore);
-    var state = useTrackedState();
-    return [
-            state,
-            match[1]
-          ];
+function track(useInstance) {
+  var match = useInstance();
+  var store = match[0];
+  var useStateFromStore = function (selector) {
+    return Zustand.useStore(store, (function (storeState) {
+                  return selector(storeState.state);
+                }));
   };
+  var useTracked = ReactTracked.createTrackedSelector(useStateFromStore);
+  var state = useTracked();
+  return [
+          state,
+          match[1]
+        ];
 }
 
 function brew(config) {
@@ -274,7 +272,7 @@ function brew(config) {
     storeRef.contents = Caml_option.some(s$1);
     return s$1;
   };
-  var useInstance = function () {
+  return function () {
     var store = ensureStore();
     var dispatch = Zustand.useStore(store, (function (st) {
             return st.dispatch;
@@ -284,7 +282,6 @@ function brew(config) {
             dispatch
           ];
   };
-  return makeTrackedInstanceHook(useInstance);
 }
 
 function pour(useInstanceHook, opts) {
@@ -314,7 +311,7 @@ export {
   select ,
   chrono ,
   makeFilteredStore ,
-  makeTrackedInstanceHook ,
+  track ,
   brew ,
   pour ,
   persist ,
