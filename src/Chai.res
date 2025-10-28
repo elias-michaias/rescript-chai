@@ -470,6 +470,12 @@ let brew: (brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => (unit => (store<'mo
       | None => ()
       }
 
+      /* register store + chrono keyed by dispatch so tracked default hooks
+         can still opt-in to rawStore/chrono via the registry without
+         duplicating the raw store. */
+      let state0: Zustand_.reduxStoreState<'model,'msg,'cmd, 'chrono> = Obj.magic(Zustand_.getState(s))
+      /* dispatch identity is stable; register it */
+      Registry.register(state0.dispatch, s, Obj.magic(s)["chrono"])
       storeRef.contents = Some(s)
       s
     }
@@ -526,7 +532,14 @@ type pourOptions<'parentModel,'parentMsg,'subModel,'subMsg> = {
 let pour = (useInstanceHook: unit => (store<'parentModel>, 'parentMsg => unit), opts: pourOptions<'parentModel,'parentMsg,'subModel,'subMsg>) => {
   let useP = () => {
     let (store, dispatch) = useInstanceHook()
-    let filtered: filteredStore<'subModel,'subMsg,'cmd, 'chrono> = makeFilteredStore(store, Some(opts.filter), Some(opts.infuse))
+    /* Prefer registry lookup by dispatch to obtain the raw store if available.
+       This keeps `useInstance` ergonomic while allowing `pour` to have the
+       raw store for typed projections. */
+    let rawOpt = Registry.lookup(dispatch)
+    let filtered: filteredStore<'subModel,'subMsg,'cmd, 'chrono> = switch rawOpt {
+    | Some((rawStore, _chrono)) => makeFilteredStore(Obj.magic(rawStore), Some(opts.filter), Some(opts.infuse))
+    | None => makeFilteredStore(store, Some(opts.filter), Some(opts.infuse))
+    }
     let wrappedStore: store<'subModel> = Obj.magic(filtered)
     let wrappedDispatch = (subMsg) => dispatch(opts.infuse(subMsg))
     (wrappedStore, wrappedDispatch)

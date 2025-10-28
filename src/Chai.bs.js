@@ -4,6 +4,7 @@ import * as Chrono from "./utils/Chrono.bs.js";
 import * as Js_dict from "rescript/lib/es6/js_dict.js";
 import * as Zustand from "zustand";
 import * as Caml_obj from "rescript/lib/es6/caml_obj.js";
+import * as Registry from "./utils/Registry.bs.js";
 import * as Belt_Array from "rescript/lib/es6/belt_Array.js";
 import * as Caml_option from "rescript/lib/es6/caml_option.js";
 import * as ReactTracked from "react-tracked";
@@ -269,6 +270,8 @@ function brew(config) {
             syncForModel(st.state, st.dispatch);
           });
     }
+    var state0$1 = s$1.getState();
+    Registry.register(state0$1.dispatch, s$1, s$1.chrono);
     storeRef.contents = Caml_option.some(s$1);
     return s$1;
   };
@@ -288,7 +291,8 @@ function pour(useInstanceHook, opts) {
   return function () {
     var match = useInstanceHook();
     var dispatch = match[1];
-    var filtered = makeFilteredStore(match[0], opts.filter, opts.infuse);
+    var rawOpt = Registry.lookup(dispatch);
+    var filtered = rawOpt !== undefined ? makeFilteredStore(rawOpt[0], opts.filter, opts.infuse) : makeFilteredStore(match[0], opts.filter, opts.infuse);
     var wrappedDispatch = function (subMsg) {
       dispatch(opts.infuse(subMsg));
     };
