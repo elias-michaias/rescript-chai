@@ -262,6 +262,27 @@ let makeFilteredStore = (origStore: store<'model>, filterOpt: option<'model => '
   {"getState": getState, "subscribe": subscribe}
 }
 
+/* Create a tracked instance hook from a brewed useInstance hook.
+   useInstance: unit => (rawStore, dispatch)
+   returns: unit => (state, dispatch)
+
+   Implementation notes: we create a closure `useStateFromStore` that reads
+   the `.state` from the raw Zustand store using the existing `Zustand_.useStore`
+   binding. Then we pass that hook into `createTrackedSelector` to obtain
+   a proxy-tracking hook that only re-renders when accessed properties change.
+*/
+let makeTrackedInstanceHook = (useInstance: unit => (store<'model>, 'd => unit)) => {
+  let useTracked = () => {
+    let (store, dispatch) = useInstance()
+    /* build a hook that reads the current state's `.state` via zustand */
+    let useStateFromStore = () => select(store, (s) => s)
+    let useTrackedState = Tracked_.createTrackedSelector(useStateFromStore)
+    let state = useTrackedState()
+    (state, dispatch)
+  }
+  useTracked
+}
+
 /**
   Create a lazily-initialized MVU-backed store and return a hook to access it.
   The returned hook creates the singleton store on first call and returns `(store<'model>, dispatch)`.
@@ -273,7 +294,7 @@ let makeFilteredStore = (origStore: store<'model>, filterOpt: option<'model => '
   let (store, dispatch) = useApp()
   ```
 */
-let brew: (brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => (unit => (store<'model>, 'msg => unit)) = (config: brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => {
+let brew: (brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => (unit => ('model, 'msg => unit)) = (config: brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => {
   let storeRef: ref<option<Zustand_.rawStore>> = ref(None)
 
   let ensureStore = () => {
@@ -357,10 +378,14 @@ let brew: (brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => (unit => (store<'mo
             }
             switch chronoMax {
             | Some(max) => {
+              /* interpret `max` as the number of history entries the user
+                 expects to be able to undo; we must keep `max + 1` snapshots
+                 (including the current one). */
+              let keep = max + 1
               let len = Belt.Array.length(chronoObj.history.contents)
-              if len > max {
-                /* keep last `max` entries */
-                chronoObj.history.contents = Belt.Array.slice(chronoObj.history.contents, ~offset=len - max, ~len=max)
+              if len > keep {
+                /* keep last `keep` entries */
+                chronoObj.history.contents = Belt.Array.slice(chronoObj.history.contents, ~offset=len - keep, ~len=keep)
                 chronoObj.index.contents = Belt.Array.length(chronoObj.history.contents) - 1
               } else {
                 ()
@@ -450,6 +475,7 @@ let brew: (brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => (unit => (store<'mo
     }
   }
 
+
   let useInstance = () => {
    let store = ensureStore()
    /* Coerce the raw Zustand instance into the public typed store that exposes `.state`.
@@ -459,7 +485,7 @@ let brew: (brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => (unit => (store<'mo
     (publicStore, dispatch)
   }
 
-  useInstance
+  makeTrackedInstanceHook(useInstance)
 }
 
 /** Options for `Chai.pour` to produce a sub-view of the core MVU loop from a brewed `useInstance` hook.

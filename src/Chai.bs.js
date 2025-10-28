@@ -6,6 +6,7 @@ import * as Zustand from "zustand";
 import * as Caml_obj from "rescript/lib/es6/caml_obj.js";
 import * as Belt_Array from "rescript/lib/es6/belt_Array.js";
 import * as Caml_option from "rescript/lib/es6/caml_option.js";
+import * as ReactTracked from "react-tracked";
 import * as Middleware from "zustand/middleware";
 
 function select(store, selector) {
@@ -56,6 +57,24 @@ function makeFilteredStore(origStore, filterOpt, infuseOpt) {
           getState: getState,
           subscribe: subscribe
         };
+}
+
+function makeTrackedInstanceHook(useInstance) {
+  return function () {
+    var match = useInstance();
+    var store = match[0];
+    var useStateFromStore = function () {
+      return select(store, (function (s) {
+                    return s;
+                  }));
+    };
+    var useTrackedState = ReactTracked.createTrackedSelector(useStateFromStore);
+    var state = useTrackedState();
+    return [
+            state,
+            match[1]
+          ];
+  };
 }
 
 function brew(config) {
@@ -164,9 +183,10 @@ function brew(config) {
                           chronoInstance.push(newState);
                         }
                         if (chronoMax !== undefined) {
+                          var keep = chronoMax + 1 | 0;
                           var len = chronoInstance.history.contents.length;
-                          if (len > chronoMax) {
-                            chronoInstance.history.contents = Belt_Array.slice(chronoInstance.history.contents, len - chronoMax | 0, chronoMax);
+                          if (len > keep) {
+                            chronoInstance.history.contents = Belt_Array.slice(chronoInstance.history.contents, len - keep | 0, keep);
                             chronoInstance.index.contents = chronoInstance.history.contents.length - 1 | 0;
                           }
                           
@@ -254,7 +274,7 @@ function brew(config) {
     storeRef.contents = Caml_option.some(s$1);
     return s$1;
   };
-  return function () {
+  var useInstance = function () {
     var store = ensureStore();
     var dispatch = Zustand.useStore(store, (function (st) {
             return st.dispatch;
@@ -264,6 +284,7 @@ function brew(config) {
             dispatch
           ];
   };
+  return makeTrackedInstanceHook(useInstance);
 }
 
 function pour(useInstanceHook, opts) {
@@ -293,6 +314,7 @@ export {
   select ,
   chrono ,
   makeFilteredStore ,
+  makeTrackedInstanceHook ,
   brew ,
   pour ,
   persist ,

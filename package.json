@@ -30,7 +30,9 @@
     "@rescript/react": "^0.13.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-tracked": "^2.0.1",
     "rescript": "^11.1.4",
+    "scheduler": "^0.27.0",
     "zustand": "^5.0.8"
   }
 }
