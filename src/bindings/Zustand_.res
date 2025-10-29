@@ -29,11 +29,13 @@ external getState: (rawStore) => 'state = "getState"
 @send
 external subscribe: (rawStore, ('state => unit)) => (unit => unit) = "subscribe"
 
-type reduxStoreState<'model, 'msg, 'cmd, 'chrono> = {
+type plugin<'model, 'msg, 'cmd>
+
+type reduxStoreState<'model, 'msg, 'cmd> = {
   state: 'model,
   dispatch: 'msg => unit,
   command: 'cmd,
-  chrono: 'chrono,
+  plugins: array<plugin<'model, 'msg, 'cmd>>,
 }
 
 /* state creator / initializer shape: (set, get, api) => state
