@@ -18,7 +18,7 @@
 
   [![GitHub top language](https://img.shields.io/github/languages/top/elias-michaias/rescript-chai)](https://github.com/elias-michaias/rescript-chai)
   [![npm version](https://img.shields.io/npm/v/rescript-chai)](https://www.npmjs.com/package/rescript-chai)
-  [![gzipped size](https://img.shields.io/badge/gzip+min-2.8KB-yellow.svg)](https://github.com/elias-michaias/rescript-chai)
+  [![gzipped size](https://img.shields.io/badge/gzip+min-4.8KB-yellow.svg)](https://github.com/elias-michaias/rescript-chai)
   [![GitHub last commit](https://img.shields.io/github/last-commit/elias-michaias/rescript-chai)](https://github.com/elias-michaias/rescript-chai)
 </div>
 <br/>
@@ -26,7 +26,7 @@
 >[!WARNING]
 >Chai is currently in early development. Some APIs are incomplete, unstable, or subject to change. Do not use Chai in production.
 <br/>
-<img src="./code.png" alt="Chai Code" />
+<img src="./screenshot.png" alt="Chai Code" />
 <br/>
 <h2>What is Chai? 🍵</h2>
 <a href="https://github.com/elias-michaias/rescript-chai">Chai</a> is an implementation of <a href="https://guide.elm-lang.org/architecture/">The Elm Architecture</a> (TEA) in <a href="https://rescript-lang.org/">ReScript</a> - built on <a href="https://react.dev/">React</a> and <a href="https://github.com/pmndrs/zustand">zustand 🐻</a>. Chai wants to make the React ecosystem accessible to the Model-View-Update paradigm, without sacrificing on the comforts you're used to. Model your state, clearly define all state transformations, and represent side effects as data structures.
@@ -63,8 +63,12 @@ let run = async (cmd, dispatch) => switch cmd {
 }
 
 // Subscriptions for external events (WebSocket, timers, etc.)
-let subs = (_model) => [
-    Sub.Time.every(1000, _ => Decrement)
+let subs = (model) => [
+    // while condition true, do ...
+    Sub.Time.every(model.count < 30, {
+        interval: 1000, 
+        cons: _ => Increment,
+    })
 ]
 
 // Describe the initial state and effects
@@ -79,12 +83,15 @@ let init = (
 // Compatible with redux devtools :)
 // https://github.com/reduxjs/redux-devtools
 let middleware = (store) => store
-    ->Zustand_.persist({name: "counter"})
-    ->Zustand_.devtools({})
+    ->Chai.persist({name: "counter"})
+    ->Chai.devtools({})
 
 // Wire everything together!
 let useCounter = Chai.brew({ 
-    update, run, subs, init, middleware  
+    update, run, subs, init, middleware, opts: {
+        // Undo/Redo/Reset functionality
+        chrono: { enabled: true }
+    }
 })
 ```
 
@@ -100,17 +107,11 @@ let make = () => {
   // `useCounter` is idempotent - 
   // use this hook anywhere to tap into the core MVU loop
   // without fear of re-running effects
-  let (store, dispatch) = Brew.useCounter()
-
-  // basic selection of a field
-  let title = store->select(m => m.title)
-
-  // computed selector: you can compute derived values inline
-  let double = store->select(m => m.count * 2)
+  let (state, dispatch, _) = Brew.useCounter()
 
   <div>
-    <h2>{React.string(title)}</h2>
-    <p>{React.string("Double: " ++ Int.toString(double))}</p>
+    <h2>{React.string(state.title)}</h2>
+    <p>{React.string("Count: " ++ Int.toString(state.count))}</p>
     <button onClick={_ => Increment->dispatch}> 
       {React.string("Inc")} 
     </button>
@@ -118,8 +119,7 @@ let make = () => {
 }
 ```
 
-Because Chai uses Zustand under the hood, fine-grained reactivity has never been easier. `select` delegates to Zustand and only re-renders when the
-selected projection changes.
+Because Chai uses Zustand under the hood, granular reactivity has never been easier. `select` delegates to Zustand and only re-renders when the selected projection changes.
 
 <h2>Installation 🚀</h2>
 

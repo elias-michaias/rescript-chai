@@ -28,6 +28,7 @@
     "@glennsl/rescript-fetch": "^0.2.3",
     "@rescript/core": "^1.6.1",
     "@rescript/react": "^0.13.1",
+    "proxy-compare": "^3.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "rescript": "^11.1.4",

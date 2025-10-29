@@ -2,18 +2,39 @@
 
 import * as Connection from "./utils/Connection.bs.js";
 
-function listen(_url, cons) {
+function listen(cond, opts) {
+  if (!cond) {
+    return ;
+  }
+  var keyFn = function (_m) {
+    return "ws:" + opts.url;
+  };
   return {
-          start: (function (dispatch) {
-              var conn = Connection.Manager.getOrCreateConnection(_url);
-              var messageHandler = function ($$event) {
-                dispatch(cons($$event.data));
+          key: keyFn,
+          start: (function (dispatch, getModel, startCancel) {
+              var cleanupRef = {
+                contents: undefined
               };
-              conn.ws.onmessage = messageHandler;
+              var wrapped = function (raw) {
+                var m = getModel();
+                var shouldCancelStart = startCancel !== undefined ? startCancel(m) : false;
+                if (!shouldCancelStart) {
+                  return dispatch(opts.cons(raw));
+                }
+                var c = cleanupRef.contents;
+                if (c !== undefined) {
+                  return c();
+                }
+                
+              };
+              var cleanup = Connection.Manager.addListener(opts.url, wrapped, undefined);
+              cleanupRef.contents = cleanup;
               return function () {
-                conn.ws.onmessage = (function (param) {
-                    
-                  });
+                var c = cleanupRef.contents;
+                if (c !== undefined) {
+                  return c();
+                }
+                
               };
             })
         };
@@ -23,15 +44,33 @@ var $$WebSocket = {
   listen: listen
 };
 
-function every(interval, cons) {
+function every(cond, opts) {
+  if (!cond) {
+    return ;
+  }
+  var keyFn = function (_m) {
+    return "time:" + String(opts.interval);
+  };
   return {
-          start: (function (dispatch) {
-              var timerCallback = function () {
-                dispatch(cons());
+          key: keyFn,
+          start: (function (dispatch, getModel, startCancel) {
+              var idRef = {
+                contents: 0
               };
-              var id = setInterval(timerCallback, interval);
+              var timerCallback = function () {
+                var m = getModel();
+                var shouldCancelStart = startCancel !== undefined ? startCancel(m) : false;
+                if (shouldCancelStart) {
+                  clearInterval(idRef.contents);
+                  return ;
+                } else {
+                  return dispatch(opts.cons());
+                }
+              };
+              var id = setInterval(timerCallback, opts.interval);
+              idRef.contents = id;
               return function () {
-                clearInterval(id);
+                clearInterval(idRef.contents);
               };
             })
         };
@@ -41,16 +80,42 @@ var Time = {
   every: every
 };
 
-function on(on$1, cons) {
+function on(cond, opts) {
+  if (!cond) {
+    return ;
+  }
+  var keyFn = function (_m) {
+    return "event:" + opts.on;
+  };
   return {
-          start: (function (dispatch) {
+          key: keyFn,
+          start: (function (dispatch, getModel, startCancel) {
+              var cleanupRef = {
+                contents: undefined
+              };
               var handler = function ($$event) {
-                dispatch(cons($$event));
+                var m = getModel();
+                var shouldCancelStart = startCancel !== undefined ? startCancel(m) : false;
+                if (!shouldCancelStart) {
+                  return dispatch(opts.cons($$event));
+                }
+                var c = cleanupRef.contents;
+                if (c !== undefined) {
+                  return c();
+                }
+                
               };
               var $$window = window;
-              $$window.addEventListener(on$1, handler);
+              $$window.addEventListener(opts.on, handler);
+              cleanupRef.contents = (function () {
+                  $$window.removeEventListener(opts.on, handler);
+                });
               return function () {
-                $$window.removeEventListener(on$1, handler);
+                var c = cleanupRef.contents;
+                if (c !== undefined) {
+                  return c();
+                }
+                
               };
             })
         };

@@ -11,8 +11,7 @@ If you've used TEA (The Elm Architecture) before, this should be familiar: you h
 ### How Chai maps MVU to code
 
 Chai exposes a single API to wire these pieces up: `Chai.brew(config)`.
-The `config` contains `update`, `run`, `init`, optional `subs`, and a
-`middleware` pipeline for the underlying Zustand store.
+The `config` contains `update`, `run`, `init`, optional `subs`, and a `middleware` pipeline for the underlying Zustand store.
 
 #### `Chai.brew(config)`
 
@@ -24,16 +23,15 @@ The `config` contains `update`, `run`, `init`, optional `subs`, and a
 - `init`: `(model, cmd)` - initial model and initial command.
 - `subs`: `model => array<Sub.subscription<'msg>>` - optional subscription generator.
 - `middleware`: `initializer<'s> => initializer<'s>` - (see <a href="https://github.com/elias-michaias/rescript-chai/blob/main/reference/middleware.md">Middleware</a>).
+- `opts`: `brewConfigOpts` - options to configure the `brew`, such as time travel for application state.
 
 #### `useInstance`
 
-`Chai.brew` returns a React hook (the `useInstance` hook). Calling that
-hook returns a pair `(store, dispatch)` where:
+`Chai.brew` returns a React hook (the `useInstance` hook). Calling that hook returns a triplet `(state, dispatch, store)` where:
 
-- `store` is an opaque runtime reference to the Zustand store. You don't inspect it directly; instead use `store->select(...)` or
-`Chai.pour` to view slices of the model.
-- `dispatch` is a function you call with `msg` values to drive the
-update function.
+- `state` is an automatically-reactive model that corresponds to your data model - you can use subfield access on it and maintain granular reactivity
+- `dispatch` is a function you call with `msg` values to drive the update function.
+- `store` is an opaque runtime reference to the Zustand store. You don't inspect it directly - it's used by `Chai.brew` to create `Chai.pour`, and you can also do `Chai.chrono(store)` in order to get access to the `chrono` object for time travelling in your application state.
 
 ### Initialization process
 
@@ -42,11 +40,7 @@ update function.
 3. If a `middleware` pipeline is provided, it's applied to the initializer so enhancers like `persist` or `devtools` are composed correctly.
 4. The store is created with `Zustand.create(enhancedInitializer)`.
 5. Chai subscribes to the store and calls your `run` for the initial command and whenever `command` updates.
-6. Components use `store->select(selector)` or `Chai.pour` to get reactive slices and call `dispatch(msg)` to produce updates.
-
-### Selectors and ergonomics
-
-`store->select(m => m.someField)` is the recommended way to read a projection of the model from a component. It uses Zustand's selector mechanism so the component only re-renders when the selected value actually changes. Selectors can compute derived values such as `store->select(m => m.count + 1)`.
+6. Components use `state.subfield` or `Chai.pour` to get reactive slices and call `dispatch(msg)` to produce updates.
 
 ### Slices of state
 
@@ -75,4 +69,4 @@ let useDropdown = Chai.pour(useApp, {
 - Keep `update` pure and free of side effects; represent effects as `cmd` values.
 - Keep `run` focused: it should interpret only the `cmd` shape you defined.
 - Use `subs` for long-lived event sources (sockets, intervals) and keep their handlers simple.
-- Use `store->select` and `Chai.pour` to keep components focused on only the relevant pieces of state they need and minimize re-renders.
+- Use `Chai.pour` to keep components focused on only the relevant pieces of state they need and minimize re-renders.
