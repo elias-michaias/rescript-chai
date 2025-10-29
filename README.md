@@ -18,7 +18,7 @@
 
   [![GitHub top language](https://img.shields.io/github/languages/top/elias-michaias/rescript-chai)](https://github.com/elias-michaias/rescript-chai)
   [![npm version](https://img.shields.io/npm/v/rescript-chai)](https://www.npmjs.com/package/rescript-chai)
-  [![gzipped size](https://img.shields.io/badge/gzip+min-2.8KB-yellow.svg)](https://github.com/elias-michaias/rescript-chai)
+  [![gzipped size](https://img.shields.io/badge/gzip+min-4.8KB-yellow.svg)](https://github.com/elias-michaias/rescript-chai)
   [![GitHub last commit](https://img.shields.io/github/last-commit/elias-michaias/rescript-chai)](https://github.com/elias-michaias/rescript-chai)
 </div>
 <br/>
