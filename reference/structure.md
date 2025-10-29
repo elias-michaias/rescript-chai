@@ -24,6 +24,7 @@ The `config` contains `update`, `run`, `init`, optional `subs`, and a
 - `init`: `(model, cmd)` - initial model and initial command.
 - `subs`: `model => array<Sub.subscription<'msg>>` - optional subscription generator.
 - `middleware`: `initializer<'s> => initializer<'s>` - (see <a href="https://github.com/elias-michaias/rescript-chai/blob/main/reference/middleware.md">Middleware</a>).
+- `opts`: `brewConfigOpts` - options to configure the `brew`, such as time travel for application state.
 
 #### `useInstance`
 

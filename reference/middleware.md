@@ -20,8 +20,8 @@ In Chai the `brew` config accepts a `middleware` function which will be applied 
 
 ```rescript
 let middleware = (store) => store
-    ->Zustand_.persist({name: "counter"})
-    ->Zustand_.devtools({})
+    ->Chai.persist({name: "counter"})
+    ->Chai.devtools({})
 
 let useCounter = Chai.brew({ 
     update, run, subs, init, middleware  
@@ -59,8 +59,8 @@ let middleware = (store) => store
     ->DevTraceMiddleware.trace("Counter Store")
 
     // Chai's provided zustand middleware bindings
-    ->Zustand_.persist({name: "counter"})
-    ->Zustand_.devtools({})
+    ->Chai.persist({name: "counter"})
+    ->Chai.devtools({})
 
 let useCounter = Chai.brew({ 
     update, run, subs, init, middleware  
