@@ -31,13 +31,28 @@ function makeFilteredStore(origStore, filterOpt, infuseOpt) {
           };
   };
   var subscribe = function (listener) {
+    var lastRef = {
+      contents: undefined
+    };
     return origStore.subscribe(function (s) {
-                var statePart = filterOpt(s.state);
+                var projected = filterOpt(s.state);
+                var prev = lastRef.contents;
+                var changed;
+                if (prev !== undefined) {
+                  var prev$1 = Caml_option.valFromOption(prev);
+                  changed = prev$1 === projected ? false : !Caml_obj.equal(prev$1, projected);
+                } else {
+                  changed = true;
+                }
+                if (!changed) {
+                  return ;
+                }
+                lastRef.contents = Caml_option.some(projected);
                 var dispatchPart = function (subMsg) {
                   s.dispatch(infuseOpt(subMsg));
                 };
                 listener({
-                      state: statePart,
+                      state: projected,
                       dispatch: dispatchPart,
                       command: s.command,
                       chrono: s.chrono
@@ -51,7 +66,7 @@ function makeFilteredStore(origStore, filterOpt, infuseOpt) {
 }
 
 function track(useInstance) {
-  return function (init) {
+  var useTrackedInstance = function (init) {
     var triple = init !== undefined ? useInstance(init) : useInstance(undefined);
     var rawStore = triple[2];
     var dispatch = triple[1];
@@ -73,6 +88,8 @@ function track(useInstance) {
             rawStore
           ];
   };
+  useTrackedInstance["rawUse"] = useInstance;
+  return useTrackedInstance;
 }
 
 function brew(config) {
@@ -288,15 +305,48 @@ function brew(config) {
 
 function pour(useInstanceHook, opts) {
   return function (init) {
-    var match = useInstanceHook(undefined);
-    var rawStore = match[2];
-    var parentDispatch = match[1];
-    var useStateFromStore = function (selector) {
-      return Zustand.useStore(rawStore, (function (storeState) {
-                    return selector(opts.filter(storeState.state));
+    var parentInitOpt = init !== undefined ? (function () {
+          return opts.infuse(init());
+        }) : undefined;
+    var rawHookOpt = Js_dict.get(useInstanceHook, "rawUse");
+    var triple;
+    if (rawHookOpt !== undefined) {
+      var rawUse = Caml_option.valFromOption(rawHookOpt);
+      triple = parentInitOpt !== undefined ? rawUse(parentInitOpt) : rawUse();
+    } else {
+      triple = parentInitOpt !== undefined ? useInstanceHook(parentInitOpt) : useInstanceHook(undefined);
+    }
+    var rawStore = triple[2];
+    var parentDispatch = triple[1];
+    var lastRawRef = React.useRef(undefined);
+    var filteredRef = React.useRef(undefined);
+    var r = lastRawRef.current;
+    var filtered;
+    var exit = 0;
+    if (r !== undefined && Caml_obj.equal(Caml_option.valFromOption(r), rawStore)) {
+      var f = filteredRef.current;
+      if (f !== undefined) {
+        filtered = Caml_option.valFromOption(f);
+      } else {
+        var f$1 = makeFilteredStore(rawStore, opts.filter, opts.infuse);
+        filteredRef.current = Caml_option.some(f$1);
+        filtered = f$1;
+      }
+    } else {
+      exit = 1;
+    }
+    if (exit === 1) {
+      var f$2 = makeFilteredStore(rawStore, opts.filter, opts.infuse);
+      lastRawRef.current = Caml_option.some(rawStore);
+      filteredRef.current = Caml_option.some(f$2);
+      filtered = f$2;
+    }
+    var useStateFromFiltered = function (selector) {
+      return Zustand.useStore(filtered, (function (storeState) {
+                    return selector(storeState.state);
                   }));
     };
-    var useTracked = Tracked_.createTrackedSelector(useStateFromStore);
+    var useTracked = Tracked_.createTrackedSelector(useStateFromFiltered);
     var state = useTracked();
     var dispatch = function (subMsg) {
       parentDispatch(opts.infuse(subMsg));

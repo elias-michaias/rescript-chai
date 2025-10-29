@@ -258,10 +258,29 @@ let makeFilteredStore = (origStore: store<'model>, filterOpt: 'model => 'subMode
 
     /* subscribe accepts a listener that receives the typed sub-model state */
   let subscribe: (Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd, 'chrono> => unit) => (unit => unit) = (listener) => {
+    /* Keep last projected value and only notify listeners if the projected
+       submodel identity changed. This prevents churn when unrelated parts of
+       the parent model update. */
+    let lastRef: ref<option<'subModel>> = ref(None)
     let unsub = Zustand_.subscribe(Obj.magic(origStore), (s: Zustand_.reduxStoreState<'model, 'parentMsg, 'cmd, 'chrono>) => {
-    let statePart: 'subModel = filterOpt(s.state)
-    let dispatchPart: 'subMsg => unit = (subMsg) => s.dispatch(infuseOpt(subMsg)) 
-        listener({state: statePart, dispatch: dispatchPart, command: s.command, chrono: s.chrono})
+    let projected: 'subModel = filterOpt(s.state)
+    let changed = switch lastRef.contents {
+      | None => true
+      | Some(prev) => {
+          if prev === projected {
+            false
+          } else {
+            not(prev == projected)
+          }
+        }
+    }
+    if changed {
+      lastRef.contents = Some(projected)
+      let dispatchPart: 'subMsg => unit = (subMsg) => s.dispatch(infuseOpt(subMsg))
+      listener({state: projected, dispatch: dispatchPart, command: s.command, chrono: s.chrono})
+    } else {
+      ()
+    }
     })
     unsub
   }
@@ -298,6 +317,10 @@ let track = (useInstance: (~init: (unit => 'd)=?) => (store<'model>, 'd => unit,
     }
     (state, dispatch, rawStore)
   }
+  /* Attach the raw `useInstance` to the returned tracked hook so callers
+     (like `pour`) can obtain the raw store without subscribing to the
+     tracked parent hook. We store it as a JS property named "rawUse". */
+  Js.Dict.set(Obj.magic(useTrackedInstance), "rawUse", Obj.magic(useInstance))
   useTrackedInstance
 }
 
@@ -499,6 +522,9 @@ let brew: (brewConfig<'model, 'sub, 'msg, 'cmd, 'chrono>) => storeHook<'model,'m
   /* raw useInstance returns the public store object and the dispatch; we
      wrap that with `track` to return the proxied state by default. */
   let rawUseInstance = (~init=?) => {
+   /* consume optional init to satisfy callers; the tracked wrapper will
+      perform the actual dispatch-on-mount behavior */
+   switch init { | Some(_cb) => () | None => () }
    let s = ensureStore()
    let publicStore: store<'model> = Obj.magic(s)
    let dispatch = Zustand_.useStore(s, (st: Zustand_.reduxStoreState<'model, 'msg, 'cmd, 'chrono>) => st.dispatch)
@@ -548,23 +574,51 @@ type pourOptions<'parentModel,'parentMsg,'subModel,'subMsg> = {
 */
 let pour: (storeHook<'parentModel, 'parentMsg>, pourOptions<'parentModel, 'parentMsg, 'subModel, 'subMsg>) => storeHook<'subModel, 'subMsg> = (useInstanceHook, opts) => {
   let useP = (~init=?) => {
-   /* `useInstanceHook` returns (parentState, parentDispatch, rawStore).
-     We build a tracked selector that reads the parent raw store but projects
-     into the sub-model using the provided `filter`. This avoids trying to
-     coerce a runtime filtered object into the static `store<'subModel>`
-     type which previously caused Obj.magic mismatches. */
-  /* Map optional sub-model init callback into an optional parent-model init
-    callback using `infuse`, then call the parent instance with that opt. */
+    /* Map optional sub-model init callback into an optional parent-model init callback using `infuse`. */
+    let parentInitOpt = switch init {
+    | Some(cb) => Some(() => opts.infuse(cb()))
+    | None => None
+    }
 
-  let (_parentState, parentDispatch, rawStore) = useInstanceHook()
+   /* Call the parent instance. Prefer the raw hook (attached as "rawUse")
+     when present so we don't subscribe to the parent's tracked hook and
+     cause extra re-renders; otherwise fall back to the provided hook. */
+  let rawHookOpt = Js.Dict.get(Obj.magic(useInstanceHook), "rawUse")
 
-    /* Create a useStateFromStore that selects the projected sub-model from
-       the parent reduxStoreState and feed it to createTrackedSelector. */
-    let rawToUse = Obj.magic(rawStore)
-    let useStateFromStore = (selector) =>
-      Zustand_.useStore(rawToUse, (storeState: Zustand_.reduxStoreState<'parentModel, 'parentMsg, 'cmd, 'chrono>) => selector(opts.filter(storeState.state)))
+  let triple = switch (rawHookOpt, parentInitOpt) {
+  | (Some(rawUse), Some(cb)) => Obj.magic(rawUse)(~init=cb)
+  | (Some(rawUse), None) => Obj.magic(rawUse)()
+  | (None, Some(cb)) => useInstanceHook(~init=cb)
+  | (None, None) => useInstanceHook()
+  }
 
-    let useTracked = Tracked_.createTrackedSelector(useStateFromStore)
+   let (_parentState, parentDispatch, rawStore) = triple
+
+    /* Build a runtime filtered store that projects the parent store into the submodel.
+       Cache the filtered store per rawStore using refs so the store identity stays
+       stable across renders. This avoids recreating the filtered object each render
+       (which would cause extra evaluations). */
+    let lastRawRef = React.useRef(None)
+    let filteredRef = React.useRef(None)
+    let filtered = switch lastRawRef.current {
+    | Some(r) when r == Obj.magic(rawStore) => switch filteredRef.current { | Some(f) => f | None => {
+        let f = makeFilteredStore(Obj.magic(rawStore), opts.filter, opts.infuse)
+        filteredRef.current = Some(f)
+        f
+      }}
+    | _ => {
+        let f = makeFilteredStore(Obj.magic(rawStore), opts.filter, opts.infuse)
+        lastRawRef.current = Some(Obj.magic(rawStore))
+        filteredRef.current = Some(f)
+        f
+      }
+    }
+
+   let filteredToUse = Obj.magic(filtered)
+    let useStateFromFiltered = (selector) =>
+      Zustand_.useStore(filteredToUse, (storeState: Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd, 'chrono>) => selector(storeState.state))
+
+    let useTracked = Tracked_.createTrackedSelector(useStateFromFiltered)
     let state: 'subModel = useTracked()
 
     let dispatch: 'subMsg => unit = (subMsg) => parentDispatch(opts.infuse(subMsg))

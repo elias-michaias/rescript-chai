@@ -11,6 +11,8 @@ export const useAffectedDebugValue = (state, affected) => {
 
 const hasGlobalProcess = typeof process === 'object';
 
+const condUseAffectedDebugValue = useAffectedDebugValue;
+
 export const createTrackedSelector = (useSelector) => {
   const useTrackedSelector = () => {
     const [, forceUpdate] = useReducer((c) => c + 1, 0);
