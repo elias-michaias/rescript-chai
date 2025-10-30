@@ -35,7 +35,7 @@ type reduxStoreState<'model, 'msg, 'cmd> = {
   state: 'model,
   dispatch: 'msg => unit,
   command: 'cmd,
-  plugins: array<plugin<'model, 'msg, 'cmd>>,
+  plugins: Js.Dict.t<plugin<'model, 'msg, 'cmd>>,
 }
 
 /* state creator / initializer shape: (set, get, api) => state
