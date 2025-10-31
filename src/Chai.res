@@ -159,10 +159,7 @@ type brewConfig<'model, 'sub, 'msg, 'cmd> = {
         ... brew({ ..., plugins })
   */
   plugins?: Zustand_.createWrapper<Zustand_.reduxStoreState<'model,'msg,'cmd>>,
-  /** Optional array of typed plugin entries built with `Plugin.toPluginSpec`.
-      Chai will merge these into the store's `plugins` dict and apply any
-      `onChange` middleware they provide. */
-  pluginEntries?: array<Plugin.pluginEntry<'model,'msg,'cmd>>,
+
   /** Optional subscription factory that produces subscriptions (or options) from the model.
 
   Factories may now return option<subscription> when conditionally included — the runtime
