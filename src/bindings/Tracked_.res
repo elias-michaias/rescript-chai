@@ -9,5 +9,5 @@
    The library contains a lot of code we don't need.
  */
 
-@module("../utils/proxy.js")
+@module("../utils/proxy-react.js")
 external createTrackedSelector: ((('state => 'selected) => 'selected) => (unit => 'selected)) = "createTrackedSelector"
