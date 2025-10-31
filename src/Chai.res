@@ -10,10 +10,10 @@ let track = (useInstance: (~init: (unit => 'd)=?) => (store<'model>, 'd => unit,
     let rawToUse = Obj.magic(rawStore)
     let useStateFromStore = (selector) =>
       Zustand_.useStore(rawToUse, (storeState: Zustand_.reduxStoreState<'model, 'd, 'cmd>) => selector(storeState.state))
-    let useTracked = Tracked_.createTrackedSelector(useStateFromStore)
+    let useTracked = Glue.createTrackedSelectorFromUseStore(useStateFromStore)
     let state: 'model = useTracked()
     switch init {
-    | Some(cb) => React.useEffect0(() => { dispatch(cb()); None })
+    | Some(cb) => Glue.useEffect0(() => { dispatch(cb()); None })
     | None => ()
     }
     (state, dispatch, rawStore)
@@ -176,21 +176,21 @@ let pour = (useInstanceHook: storeHook<'parentModel,'parentMsg>, opts: pourOptio
     }
   }
 
-  let lastRawRef: React.ref<option<Zustand_.rawStore>> = React.useRef(None)
-  let filteredRef: React.ref<option<Core.filteredStore<'subModel,'subMsg,'cmd>>> = React.useRef(None)
+  let lastRawRef: Glue.glueRef<option<Zustand_.rawStore>> = Glue.useRef()
+  let filteredRef: Glue.glueRef<option<Core.filteredStore<'subModel,'subMsg,'cmd>>> = Glue.useRef()
   let filtered = Helpers.getOrCreateFilteredStore(lastRawRef, filteredRef, rawStore, opts.filter, opts.infuse)
 
    let filteredToUse = Obj.magic(filtered)
     let useStateFromFiltered = (selector) =>
       Zustand_.useStore(filteredToUse, (storeState: Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd>) => selector(storeState.state))
 
-    let useTracked = Tracked_.createTrackedSelector(useStateFromFiltered)
+    let useTracked = Glue.createTrackedSelector(useStateFromFiltered)
     let state: 'subModel = useTracked()
 
     let dispatch: 'subMsg => unit = (subMsg) => parentDispatch(opts.infuse(subMsg))
 
   switch init {
-  | Some(cb) => React.useEffect0(() => { parentDispatch(opts.infuse(cb())); None })
+  | Some(cb) => Glue.useEffect0(() => { parentDispatch(opts.infuse(cb())); None })
   | None => ()
   }
 

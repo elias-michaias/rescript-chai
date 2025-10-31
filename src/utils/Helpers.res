@@ -20,22 +20,22 @@ let notifyPluginsOnDispatch = (plugins: Js.Dict.t<Zustand_.plugin<'m,'msg,'cmd>>
   Js.Dict.entries(plugins)->Array.forEach(((_, p)) => Plugin.callOnDispatch(p, msg))
 
 let getOrCreateFilteredStore = (
-  lastRawRef: React.ref<option<Zustand_.rawStore>>,
-  filteredRef: React.ref<option<Core.filteredStore<'subModel,'subMsg,'cmd>>>,
+  lastRawRef: Glue.glueRef<option<Zustand_.rawStore>>,
+  filteredRef: Glue.glueRef<option<Core.filteredStore<'subModel,'subMsg,'cmd>>>,
   rawStore: Zustand_.rawStore,
   filter: 'parentModel => 'subModel,
   infuse: 'subMsg => 'parentMsg,
 ) => {
-  switch lastRawRef.current {
-  | Some(r) when r == rawStore => switch filteredRef.current { | Some(f) => f | None => {
+  switch Glue.refGet(lastRawRef) {
+  | Some(r) when r == rawStore => switch Glue.refGet(filteredRef) { | Some(f) => f | None => {
       let f = Core.makeFilteredStore(rawStore, Obj.magic(filter), Obj.magic(infuse))
-      filteredRef.current = Some(f)
+      Glue.refSet(filteredRef, f)
       f
     }}
   | _ => {
       let f = Core.makeFilteredStore(rawStore, Obj.magic(filter), Obj.magic(infuse))
-      lastRawRef.current = Some(rawStore)
-      filteredRef.current = Some(f)
+      Glue.refSet(lastRawRef, rawStore)
+      Glue.refSet(filteredRef, f)
       f
     }
   }
