@@ -159,6 +159,10 @@ type brewConfig<'model, 'sub, 'msg, 'cmd> = {
         ... brew({ ..., plugins })
   */
   plugins?: Zustand_.createWrapper<Zustand_.reduxStoreState<'model,'msg,'cmd>>,
+  /** Optional array of typed plugin entries built with `Plugin.toPluginSpec`.
+      Chai will merge these into the store's `plugins` dict and apply any
+      `onChange` middleware they provide. */
+  pluginEntries?: array<Plugin.pluginEntry<'model,'msg,'cmd>>,
   /** Optional subscription factory that produces subscriptions (or options) from the model.
 
   Factories may now return option<subscription> when conditionally included — the runtime
@@ -354,21 +358,38 @@ let brew: (brewConfig<'model, 'sub, 'msg, 'cmd>) => storeHook<'model,'msg> = (co
     | Some(s) => s
     | None => {
       let (initialModel, initialCmd) = config.init
-      let initializer = ((set: (Zustand_.reduxStoreState<'model,'msg,'cmd> => Zustand_.reduxStoreState<'model,'msg,'cmd>) => unit), (_get: unit => Zustand_.reduxStoreState<'model,'msg,'cmd>), (_api: Zustand_.storeApi<Zustand_.reduxStoreState<'model,'msg,'cmd>>)) => {
+  let initializer = ((set: (Zustand_.reduxStoreState<'model,'msg,'cmd> => Zustand_.reduxStoreState<'model,'msg,'cmd>) => unit), (_get: unit => Zustand_.reduxStoreState<'model,'msg,'cmd>), (_api: Zustand_.storeApi<Zustand_.reduxStoreState<'model,'msg,'cmd>>)) => {
+    /* Wrap `set` so plugins can observe model sets via `onSet` lifecycle. */
+    let setWithPluginNotify = (updater: (Zustand_.reduxStoreState<'model,'msg,'cmd> => Zustand_.reduxStoreState<'model,'msg,'cmd>)) => {
+      set((curr) => {
+        let next = updater(curr)
+        /* notify each plugin of the new model (callOnSet) */
+  Js.Dict.entries(next.plugins)->Array.forEach(((_, p)) => Plugin.callOnSet(p, next.state))
+        next
+      })
+    }
+
+   /* Start with an empty plugins dict; create-time plugin pipeline (config.plugins)
+     will inject runtime plugins into the returned state. */
+   let pluginsDict: Js.Dict.t<Zustand_.plugin<'model,'msg,'cmd>> = Js.Dict.empty()
+
     let storeState: Zustand_.reduxStoreState<'model,'msg,'cmd> = {
       state: initialModel,
       command: initialCmd,
-      dispatch: (action) => set((current: Zustand_.reduxStoreState<'model,'msg,'cmd>) => {
+      dispatch: (action) => setWithPluginNotify((current: Zustand_.reduxStoreState<'model,'msg,'cmd>) => {
         let (newState, newCmd) = config.update(current.state, action)
         {...current, state: newState, command: newCmd}
       }),
-      plugins: Js.Dict.empty(),
+      /* pluginsDict already contains runtime plugin objects created above */
+      plugins: pluginsDict,
     }
     storeState
       }
 
-    let enhancedInit = switch config.middleware { | Some(ext) => ext(initializer) | None => initializer }
-    let enhancedInit = switch config.plugins { | Some(pExt) => pExt(enhancedInit) | None => enhancedInit }
+  let enhancedInit = switch config.middleware { | Some(ext) => ext(initializer) | None => initializer }
+  /* Apply plugin-provided onChange wrappers */
+  let enhancedInit = switch config.plugins { | Some(pExt) => pExt(enhancedInit) | None => enhancedInit }
+  let enhancedInit = enhancedInit
   let s = Zustand_.create(enhancedInit)
 
       switch config.run { | Some(runFn) => {
@@ -454,7 +475,18 @@ let brew: (brewConfig<'model, 'sub, 'msg, 'cmd>) => storeHook<'model,'msg> = (co
    switch init { | Some(_cb) => () | None => () }
    let s = ensureStore()
    let publicStore: store<'model> = Obj.magic(s)
-   let dispatch = Zustand_.useStore(s, (st: Zustand_.reduxStoreState<'model, 'msg, 'cmd>) => st.dispatch)
+   /* Call plugin onUse lifecycle for all registered plugins */
+   let stNow: Zustand_.reduxStoreState<'model,'msg,'cmd> = Obj.magic(Zustand_.getState(s))
+   Js.Dict.entries(stNow.plugins)->Array.forEach(((_, p)) => Plugin.callOnUse(p))
+
+   let rawDispatch = Zustand_.useStore(s, (st: Zustand_.reduxStoreState<'model, 'msg, 'cmd>) => st.dispatch)
+   /* Wrap dispatch to notify plugins about dispatched messages */
+   let dispatch = (msg: 'msg) => {
+     /* notify plugins */
+     let current: Zustand_.reduxStoreState<'model,'msg,'cmd> = Obj.magic(Zustand_.getState(s))
+     Js.Dict.entries(current.plugins)->Array.forEach(((_, p)) => Plugin.callOnDispatch(p, msg))
+     rawDispatch(msg)
+   }
    /* Return the public proxied store plus the underlying raw Zustand store for advanced use */
     (publicStore, dispatch, s)
   }
@@ -499,7 +531,7 @@ type pourOptions<'parentModel,'parentMsg,'subModel,'subMsg> = {
   let (state, dispatch, store) = useCounter()
   ```
 */
-let pour = (useInstanceHook: storeHook<'parentModel,'parentMsg>) => (opts: pourOptions<'parentModel,'parentMsg,'subModel,'subMsg>) => {
+let pour = (useInstanceHook: storeHook<'parentModel,'parentMsg>, opts: pourOptions<'parentModel,'parentMsg,'subModel,'subMsg>) => {
   let useP = (~init=?) => {
    /* We map init via `infuse` only when dispatching on mount below; no
      need to precompute a parentInit value here (avoids unused-vars). */

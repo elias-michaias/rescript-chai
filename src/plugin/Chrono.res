@@ -15,6 +15,7 @@ type chronoApi<'model> = {
   clear: unit => unit,
   reset: unit => unit,
   getSnapshot: int => option<'model>,
+  dispose: unit => unit,
 }
 
 let create = (initialModel: 'model, setSnapshot: 'model => unit): chronoApi<'model> => {
@@ -53,7 +54,9 @@ let create = (initialModel: 'model, setSnapshot: 'model => unit): chronoApi<'mod
     setSnapshot(initialModel)
   }
 
-  { history: history, index: index, push: push, undo: undo, redo: redo, goto: goto, clear: clear, reset: reset, getSnapshot: getSnapshot }
+  let dispose = () => clear()
+
+  { history: history, index: index, push: push, undo: undo, redo: redo, goto: goto, clear: clear, reset: reset, getSnapshot: getSnapshot, dispose: dispose }
 }
 
 /* Create a chrono that records snapshots of a projected sub-model.
@@ -105,80 +108,107 @@ type chronoPluginOpts<'parent,'snap> = {
    function handles by creating the plugin wrapper and applying it to the
    provided initializer.
 */
-let plugin = (innerInit: Zustand_.initializer<Zustand_.reduxStoreState<'parent,'msg,'cmd>>, opts: chronoPluginOpts<'parent,'snap>) => {
-  (set, get, api) => {
-    /* call inner initializer to obtain base state */
-    let base = innerInit(set, get, api)
-    let baseTyped: Zustand_.reduxStoreState<'parent,'msg,'cmd> = Obj.magic(base)
-    let initial = baseTyped.state
+let plugin = (innerInit, opts: chronoPluginOpts<'parent,'snap>) => {
+  /* Create the plugin spec and wrapper inside the function so types are
+     monomorphic per call (avoids let-generalization issues). */
+  let builder = (opts2: chronoPluginOpts<'parent,'snap>) => {
+    let apiFactory = (ctx: Plugin.pluginContext<'parent,'msg,'cmd>) => {
+      let setSnapshot = (m: 'parent) => ctx.setRaw((curr: Zustand_.reduxStoreState<'parent,'msg,'cmd>) => {...curr, state: m})
+      let suppressPush: ref<bool> = ref(false)
 
-    /* helper to set the whole model snapshot */
-    let setSnapshot = (m: 'parent) => set((curr: Zustand_.reduxStoreState<'parent,'msg,'cmd>) => {...curr, state: m})
-
-    /* small guard to avoid recording snapshots produced by Chrono itself */
-    let suppressPush: ref<bool> = ref(false)
-
-    let makeProjected = (filter: 'parent => 'snap, apply: 'snap => ('parent => 'parent)) => {
-      let setProjected = (snap: 'snap) => {
-        let parentNow = (get() : Zustand_.reduxStoreState<'parent,'msg,'cmd>).state
-        let updated = apply(snap)(parentNow)
-        /* mark suppression so our subsequent set doesn't re-push */
-        suppressPush.contents = true
-        setSnapshot(updated)
-        suppressPush.contents = false
+      let makeProjected = (filter: 'parent => 'snap, apply: 'snap => ('parent => 'parent)) => {
+        let setProjected = (snap: 'snap) => {
+          let parentNow = ctx.getState().state
+          let updated = apply(snap)(parentNow)
+          suppressPush.contents = true
+          setSnapshot(updated)
+          suppressPush.contents = false
+        }
+        createProjected(ctx.initialModel, filter, setProjected)
       }
-      createProjected(initial, filter, setProjected)
-    }
 
-    /* create chrono instance depending on whether projection is used */
-    let baseChrono = switch (opts.filter, opts.apply) {
-    | (Some(f), Some(a)) => {
-        let c = makeProjected(f, a)
-        /* subscribe to parent store changes and push projected snapshots */
-        let _unsub = api.subscribe((st: Zustand_.reduxStoreState<'parent,'msg,'cmd>) => if suppressPush.contents { () } else { c.push(f(st.state)) })
-        c
+      let baseChrono = switch (opts2.filter, opts2.apply) {
+      | (Some(f), Some(a)) => makeProjected(f, a)
+      | _ => create(ctx.initialModel, s => { suppressPush.contents = true; setSnapshot(s); suppressPush.contents = false })
       }
-    | _ => {
-        let c = create(initial, s => { suppressPush.contents = true; setSnapshot(s); suppressPush.contents = false })
-        /* subscribe to parent changes and push whole-model snapshots when parent changes */
-        let _unsub = api.subscribe((st: Zustand_.reduxStoreState<'parent,'msg,'cmd>) => if suppressPush.contents { () } else { c.push(st.state) })
-        c
-      }
-    }
 
-    /* enforce max history length if requested */
-    let chronoWithMax = switch opts.max {
-    | Some(max) => {
-        let origPush = baseChrono.push
-        let wrappedPush = (m: 'snap) => {
-          origPush(m)
-          let len = Belt.Array.length(baseChrono.history.contents)
-          let keep = max + 1
-          if len > keep {
-            baseChrono.history.contents = Belt.Array.slice(baseChrono.history.contents, ~offset=len - keep, ~len=keep)
-            baseChrono.index.contents = Belt.Array.length(baseChrono.history.contents) - 1
+      /* subscribe to future state changes and push snapshots into the chrono
+         history unless a suppress flag is set (used by programmatic restores) */
+      let unsubscribeRef: ref<option<unit => unit>> = ref(None)
+
+      let subscribeToChanges = (isProjected: bool, filterFn: option<'parent => 'snap>) => {
+        let unsub = ctx.subscribe(st => {
+          if !suppressPush.contents {
+            let current = st.state
+            let snap = if isProjected {
+              switch filterFn { | Some(f) => f(current) | None => Obj.magic(current) }
+            } else {
+              Obj.magic(current)
+            }
+            /* push the new snapshot into history */
+            baseChrono.push(snap)
           } else {
             ()
           }
-        }
-        {...baseChrono, push: wrappedPush}
+        })
+        unsubscribeRef.contents = Some(unsub)
       }
-    | None => baseChrono
+
+      /* subscribe according to whether we're in projected mode */
+      switch (opts2.filter, opts2.apply) {
+      | (Some(_), Some(_)) => subscribeToChanges(true, opts2.filter)
+      | _ => subscribeToChanges(false, None)
+      }
+
+      let chronoWithMax = switch opts2.max {
+      | Some(max) => {
+          let origPush = baseChrono.push
+          let wrappedPush = (m: 'snap) => {
+            origPush(m)
+            let len = Belt.Array.length(baseChrono.history.contents)
+            let keep = max + 1
+            if len > keep {
+              baseChrono.history.contents = Belt.Array.slice(baseChrono.history.contents, ~offset=len - keep, ~len=keep)
+              baseChrono.index.contents = Belt.Array.length(baseChrono.history.contents) - 1
+            } else {
+              ()
+            }
+          }
+          {...baseChrono, push: wrappedPush}
+        }
+      | None => baseChrono
+      }
+
+      let dispose = () => {
+        /* unsubscribe if subscribed */
+        switch unsubscribeRef.contents { | Some(u) => u() | None => () }
+        chronoWithMax.clear()
+      }
+
+      let api = {
+        history: chronoWithMax.history,
+        index: chronoWithMax.index,
+        push: chronoWithMax.push,
+        undo: chronoWithMax.undo,
+        redo: chronoWithMax.redo,
+        goto: chronoWithMax.goto,
+        clear: chronoWithMax.clear,
+        reset: chronoWithMax.reset,
+        getSnapshot: chronoWithMax.getSnapshot,
+        dispose: dispose,
+      }
+      api
     }
+    let spec: Plugin.pluginSpec<'parent,'msg,'cmd, chronoApi<'snap>> = { apiFactory: apiFactory }
+    Plugin.toPluginSpec("chrono", spec)
+  }
+  let wrapper = Plugin.make(builder)(opts)
+  wrapper(innerInit)
+}
 
-    /* register plugin into plugins dict and return merged state */
-    let d = Js.Dict.empty()
-    Js.Dict.entries(baseTyped.plugins)->Array.forEach(((k, v)) => Js.Dict.set(d, k, v))
-    Js.Dict.set(d, "chrono", Obj.magic(chronoWithMax))
-
-    let mergeWithPlugins = %raw("(function(base, plugins){ var o = Object.assign({}, base); o.plugins = plugins; return o })")
-    Obj.magic(mergeWithPlugins(Obj.magic(baseTyped), d))
+let get = (store): option<chronoApi<'snap>> => {
+  switch Plugin.get(store, "chrono") {
+    | Some(p) => Some(p)
+    | None => None
   }
 }
-
-
-/* Convenience typed accessor: get chrono plugin from a typed redux state. */
-let get = (store): option<chronoApi<'model>> => {
-  Plugin.getPluginFromRawStore(store, "chrono")
-}
-

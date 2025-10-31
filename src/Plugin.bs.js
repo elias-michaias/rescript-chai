@@ -3,15 +3,6 @@
 import * as Js_dict from "rescript/lib/es6/js_dict.js";
 import * as Caml_option from "rescript/lib/es6/caml_option.js";
 
-function getPlugin(rawStore, name) {
-  var s = rawStore.getState();
-  var p = Js_dict.get(s.plugins, name);
-  if (p !== undefined) {
-    return Caml_option.some(Caml_option.valFromOption(p));
-  }
-  
-}
-
 function createPluginWrapper(name, makePlugin) {
   return function (innerInit) {
     return function (set, get, api) {
@@ -49,13 +40,19 @@ function createPluginWrapper(name, makePlugin) {
 
 function getPluginFromState(st, name) {
   var p = Js_dict.get(st.plugins, name);
-  if (p !== undefined) {
-    return Caml_option.some(Caml_option.valFromOption(p));
+  if (p === undefined) {
+    return ;
   }
-  
+  var p$1 = Caml_option.valFromOption(p);
+  var apiVal = Js_dict.get(p$1, "api");
+  if (apiVal !== undefined) {
+    return Caml_option.some(Caml_option.valFromOption(apiVal));
+  } else {
+    return Caml_option.some(p$1);
+  }
 }
 
-function getPluginFromRawStore(rawStore, name) {
+function get(rawStore, name) {
   var s = rawStore.getState();
   return getPluginFromState(s, name);
 }
@@ -64,11 +61,194 @@ function toPlugin(v) {
   return v;
 }
 
+function callOnUse(p) {
+  var f = Js_dict.get(p, "onUse");
+  if (f !== undefined) {
+    return Caml_option.valFromOption(f)();
+  }
+  
+}
+
+function callOnDispatch(p, msg) {
+  var f = Js_dict.get(p, "onDispatch");
+  if (f !== undefined) {
+    return Caml_option.valFromOption(f)(msg);
+  }
+  
+}
+
+function callOnSet(p, model) {
+  var f = Js_dict.get(p, "onSet");
+  if (f !== undefined) {
+    return Caml_option.valFromOption(f)(model);
+  }
+  
+}
+
+function callOnRun(p, cmd) {
+  var f = Js_dict.get(p, "onRun");
+  if (f !== undefined) {
+    return Caml_option.valFromOption(f)(cmd);
+  }
+  
+}
+
+function callOnUnmount(p) {
+  var f = Js_dict.get(p, "onUnmount");
+  if (f !== undefined) {
+    return Caml_option.valFromOption(f)();
+  }
+  
+}
+
+function callOnChange(p, init) {
+  var f = Js_dict.get(p, "onChange");
+  if (f !== undefined) {
+    return Caml_option.valFromOption(f)(init);
+  } else {
+    return init;
+  }
+}
+
+function toPluginSpec(name, spec) {
+  var d = {};
+  d["api"] = spec.api;
+  var f = spec.onUse;
+  if (f !== undefined) {
+    d["onUse"] = f;
+  }
+  var f$1 = spec.onDispatch;
+  if (f$1 !== undefined) {
+    d["onDispatch"] = f$1;
+  }
+  var f$2 = spec.onSet;
+  if (f$2 !== undefined) {
+    d["onSet"] = f$2;
+  }
+  var f$3 = spec.onRun;
+  if (f$3 !== undefined) {
+    d["onRun"] = f$3;
+  }
+  var f$4 = spec.onUnmount;
+  if (f$4 !== undefined) {
+    d["onUnmount"] = f$4;
+  }
+  var f$5 = spec.onChange;
+  if (f$5 !== undefined) {
+    d["onChange"] = f$5;
+  }
+  var f$6 = spec.apiFactory;
+  if (f$6 !== undefined) {
+    d["apiFactory"] = f$6;
+  }
+  return {
+          name: name,
+          plugin: d
+        };
+}
+
+function makeRuntime(pluginOpaque, set, get, api) {
+  var f = Js_dict.get(pluginOpaque, "apiFactory");
+  if (f !== undefined) {
+    var st = get();
+    var initialModel = st.state;
+    var setSnapshot = function (m) {
+      set(function (curr) {
+            return {
+                    state: m,
+                    dispatch: curr.dispatch,
+                    command: curr.command,
+                    plugins: curr.plugins
+                  };
+          });
+    };
+    var ctx_subscribe = api.subscribe;
+    var ctx = {
+      initialModel: initialModel,
+      setSnapshot: setSnapshot,
+      getState: get,
+      setRaw: set,
+      subscribe: ctx_subscribe
+    };
+    var apiVal = Caml_option.valFromOption(f)(ctx);
+    pluginOpaque["api"] = apiVal;
+    var disposeF = Js_dict.get(apiVal, "dispose");
+    if (disposeF !== undefined) {
+      pluginOpaque["onUnmount"] = Caml_option.valFromOption(disposeF);
+    }
+    
+  }
+  return pluginOpaque;
+}
+
+function make(builder) {
+  return function (opts) {
+    return function (innerInit) {
+      return function (set, get, api) {
+        var base = innerInit(set, get, api);
+        var entry = builder(opts);
+        var runtimePlugin = makeRuntime(entry.plugin, set, (function () {
+                return base;
+              }), api);
+        var d = {};
+        Js_dict.entries(base.plugins).forEach(function (param) {
+              d[param[0]] = param[1];
+            });
+        d[entry.name] = runtimePlugin;
+        var mergeWithPlugins = ((function(base, plugins){ var o = Object.assign({}, base); o.plugins = plugins; return o }));
+        return mergeWithPlugins(base, d);
+      };
+    };
+  };
+}
+
+function makeRuntime$1(pluginOpaque, set, get, api) {
+  var f = Js_dict.get(pluginOpaque, "apiFactory");
+  if (f !== undefined) {
+    var st = get();
+    var initialModel = st.state;
+    var setSnapshot = function (m) {
+      set(function (curr) {
+            return {
+                    state: m,
+                    dispatch: curr.dispatch,
+                    command: curr.command,
+                    plugins: curr.plugins
+                  };
+          });
+    };
+    var ctx_subscribe = api.subscribe;
+    var ctx = {
+      initialModel: initialModel,
+      setSnapshot: setSnapshot,
+      getState: get,
+      setRaw: set,
+      subscribe: ctx_subscribe
+    };
+    var apiVal = Caml_option.valFromOption(f)(ctx);
+    pluginOpaque["api"] = apiVal;
+    var disposeF = Js_dict.get(apiVal, "dispose");
+    if (disposeF !== undefined) {
+      pluginOpaque["onUnmount"] = Caml_option.valFromOption(disposeF);
+    }
+    
+  }
+  return pluginOpaque;
+}
+
 export {
-  getPlugin ,
   createPluginWrapper ,
   getPluginFromState ,
-  getPluginFromRawStore ,
+  get ,
   toPlugin ,
+  callOnUse ,
+  callOnDispatch ,
+  callOnSet ,
+  callOnRun ,
+  callOnUnmount ,
+  callOnChange ,
+  toPluginSpec ,
+  make ,
+  makeRuntime$1 as makeRuntime,
 }
 /* No side effect */
