@@ -1,87 +1,4 @@
-module type Kettle = {
-  type model
-  type msg
-  type cmd
-  let update: (model, msg) => (model, cmd)
-  let run: (cmd, msg => unit) => promise<unit>
-}
-
-type baseCreate<'model,'msg,'cmd> = (('model, 'msg) => ('model, 'cmd), 'model, 'cmd) => Zustand_.rawStore
-
-type createFn<'s> = (Zustand_.initializer<'s> => Zustand_.rawStore)
-
-type createWrapperForCreate<'s> = createFn<'s> => createFn<'s>
-
-type brewConfigOpts<'model, 'sub> = {}
-
-type brewConfig<'model, 'sub, 'msg, 'cmd> = {
-  update: ('model, 'msg) => ('model, 'cmd),
-  run?: ('cmd, 'msg => unit) => promise<unit>,
-  init: ('model, 'cmd),
-  middleware?: Zustand_.createWrapper<Zustand_.reduxStoreState<'model,'msg,'cmd>>,
-  plugins?: Zustand_.createWrapper<Zustand_.reduxStoreState<'model,'msg,'cmd>>,
-  subs?: 'model => array<option<Sub.subscription<'model,'msg>>>,
-  opts?: brewConfigOpts<'model, 'sub>,
-}
-
-type store<'model> = Zustand_.store<'model>
-
-type storeHook<'model,'msg> = (~init: (unit => 'msg)=?) => ('model, 'msg => unit, Zustand_.rawStore)
-
-type rawUseHook<'m,'d> = (~init: (unit => 'd)=?) => (store<'m>, 'd => unit, Zustand_.rawStore)
-
-let getRawUse = (hook: storeHook<'m,'d>) : option<rawUseHook<'m,'d>> => {
-  switch Js.Dict.get(Obj.magic(hook), "rawUse") {
-  | Some(r) => Some(Obj.magic(r))
-  | None => None
-  }
-}
-
-type hookOptions<'model, 'msg, 'subModel, 'subMsg> = {
-  filter: option<'model => 'subModel>,
-  infuse: option<'subMsg => 'msg>,
-}
-
-let select = (store: store<'model>, selector) =>
-  Zustand_.useStore(Obj.magic(store), (storeState: Zustand_.reduxStoreState<'model, 'msg, 'cmd>) => selector(storeState.state))
-
-type filteredStore<'subModel, 'subMsg, 'cmd> = {. "getState": unit => Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd>, "subscribe": (Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd> => unit) => (unit => unit) }
-
-let makeFilteredStore = (origRawStore: Zustand_.rawStore, filterOpt: 'parentModel => 'subModel, infuseOpt: 'subMsg => 'parentMsg): filteredStore<'subModel,'subMsg,'cmd> => {
-  let getState: unit => Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd> = () => {
-      let s: Zustand_.reduxStoreState<'parentModel, 'parentMsg, 'cmd> = Obj.magic(Zustand_.getState(origRawStore))
-      let statePart: 'subModel = filterOpt(s.state)
-      let dispatchPart: 'subMsg => unit = (subMsg) => s.dispatch(infuseOpt(subMsg))
-      {state: statePart, dispatch: dispatchPart, command: s.command, plugins: s.plugins}
-  }
-
-  let subscribe: (Zustand_.reduxStoreState<'subModel, 'subMsg, 'cmd> => unit) => (unit => unit) = (listener) => {
-    let lastRef: ref<option<'subModel>> = ref(None)
-    let unsub = Zustand_.subscribe(Obj.magic(origRawStore), (s: Zustand_.reduxStoreState<'parentModel, 'parentMsg, 'cmd>) => {
-    let projected: 'subModel = filterOpt(s.state)
-    let changed = switch lastRef.contents {
-      | None => true
-      | Some(prev) => {
-          if prev === projected {
-            false
-          } else {
-            not(prev == projected)
-          }
-        }
-    }
-    if changed {
-      lastRef.contents = Some(projected)
-      let dispatchPart: 'subMsg => unit = (subMsg) => s.dispatch(infuseOpt(subMsg))
-      listener({state: projected, dispatch: dispatchPart, command: s.command, plugins: s.plugins})
-    } else {
-      ()
-    }
-    })
-    unsub
-  }
-
-    {"getState": getState, "subscribe": subscribe}
-}
+open Core
 
 let track = (useInstance: (~init: (unit => 'd)=?) => (store<'model>, 'd => unit, Zustand_.rawStore)) => {
   let useTrackedInstance = (~init=?) => {
@@ -101,8 +18,17 @@ let track = (useInstance: (~init: (unit => 'd)=?) => (store<'model>, 'd => unit,
     }
     (state, dispatch, rawStore)
   }
-  Js.Dict.set(Obj.magic(useTrackedInstance), "rawUse", Obj.magic(useInstance))
+  Helpers.attachRawUse(useTrackedInstance, useInstance)
   useTrackedInstance
+}
+
+type brewConfig<'model, 'sub, 'msg, 'cmd> = {
+  update: ('model, 'msg) => ('model, 'cmd),
+  run?: ('cmd, 'msg => unit) => promise<unit>,
+  init: ('model, 'cmd),
+  middleware?: Zustand_.createWrapper<Zustand_.reduxStoreState<'model,'msg,'cmd>>,
+  plugins?: Zustand_.createWrapper<Zustand_.reduxStoreState<'model,'msg,'cmd>>,
+  subs?: 'model => array<option<Sub.subscription<'model,'msg>>>,
 }
 
 let brew: (brewConfig<'model, 'sub, 'msg, 'cmd>) => storeHook<'model,'msg> = (config: brewConfig<'model, 'sub, 'msg, 'cmd>) => {
@@ -212,14 +138,14 @@ let brew: (brewConfig<'model, 'sub, 'msg, 'cmd>) => storeHook<'model,'msg> = (co
   let rawUseInstance = (~init=?) => {
    switch init { | Some(_cb) => () | None => () }
    let s = ensureStore()
-   let publicStore: store<'model> = Obj.magic(s)
-   let stNow: Zustand_.reduxStoreState<'model,'msg,'cmd> = Obj.magic(Zustand_.getState(s))
-   Js.Dict.entries(stNow.plugins)->Array.forEach(((_, p)) => Plugin.callOnUse(p))
+  let publicStore: store<'model> = Obj.magic(s)
+  let stNow = Helpers.rawToTypedState(s)
+  Js.Dict.entries(stNow.plugins)->Array.forEach(((_, p)) => Plugin.callOnUse(p))
 
    let rawDispatch = Zustand_.useStore(s, (st: Zustand_.reduxStoreState<'model, 'msg, 'cmd>) => st.dispatch)
    let dispatch = (msg: 'msg) => {
-     let current: Zustand_.reduxStoreState<'model,'msg,'cmd> = Obj.magic(Zustand_.getState(s))
-     Js.Dict.entries(current.plugins)->Array.forEach(((_, p)) => Plugin.callOnDispatch(p, msg))
+  let current = Helpers.rawToTypedState(s)
+  Helpers.notifyPluginsOnDispatch(current.plugins, msg)
      rawDispatch(msg)
    }
     (publicStore, dispatch, s)
@@ -237,7 +163,7 @@ type pourOptions<'parentModel,'parentMsg,'subModel,'subMsg> = {
 
 let pour = (useInstanceHook: storeHook<'parentModel,'parentMsg>, opts: pourOptions<'parentModel,'parentMsg,'subModel,'subMsg>) => {
   let useP = (~init=?) => {
-  let rawHookOpt = getRawUse(useInstanceHook)
+  let rawHookOpt = Helpers.getRawUse(useInstanceHook)
 
   let (_, parentDispatch, rawStore) = switch rawHookOpt {
   | Some(rawUse) => {
@@ -250,21 +176,9 @@ let pour = (useInstanceHook: storeHook<'parentModel,'parentMsg>, opts: pourOptio
     }
   }
 
-    let lastRawRef: React.ref<option<Zustand_.rawStore>> = React.useRef(None)
-    let filteredRef: React.ref<option<filteredStore<'subModel,'subMsg,'cmd>>> = React.useRef(None)
-    let filtered = switch lastRawRef.current {
-    | Some(r) when r == rawStore => switch filteredRef.current { | Some(f) => f | None => {
-  let f = makeFilteredStore(rawStore, Obj.magic(opts.filter), Obj.magic(opts.infuse))
-        filteredRef.current = Some(f)
-        f
-      }}
-    | _ => {
-  let f = makeFilteredStore(rawStore, Obj.magic(opts.filter), Obj.magic(opts.infuse))
-        lastRawRef.current = Some(rawStore)
-        filteredRef.current = Some(f)
-        f
-      }
-    }
+  let lastRawRef: React.ref<option<Zustand_.rawStore>> = React.useRef(None)
+  let filteredRef: React.ref<option<Core.filteredStore<'subModel,'subMsg,'cmd>>> = React.useRef(None)
+  let filtered = Helpers.getOrCreateFilteredStore(lastRawRef, filteredRef, rawStore, opts.filter, opts.infuse)
 
    let filteredToUse = Obj.magic(filtered)
     let useStateFromFiltered = (selector) =>

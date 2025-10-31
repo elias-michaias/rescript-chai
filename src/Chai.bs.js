@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import * as $$Plugin from "./Plugin.bs.js";
+import * as Helpers from "./utils/Helpers.bs.js";
 import * as Js_dict from "rescript/lib/es6/js_dict.js";
 import * as Zustand from "zustand";
 import * as Caml_obj from "rescript/lib/es6/caml_obj.js";
@@ -9,69 +10,6 @@ import * as Tracked_ from "./bindings/Tracked_.bs.js";
 import * as Belt_Array from "rescript/lib/es6/belt_Array.js";
 import * as Caml_option from "rescript/lib/es6/caml_option.js";
 import * as Middleware from "zustand/middleware";
-
-function getRawUse(hook) {
-  var r = Js_dict.get(hook, "rawUse");
-  if (r !== undefined) {
-    return Caml_option.valFromOption(r);
-  }
-  
-}
-
-function select(store, selector) {
-  return Zustand.useStore(store, (function (storeState) {
-                return selector(storeState.state);
-              }));
-}
-
-function makeFilteredStore(origRawStore, filterOpt, infuseOpt) {
-  var getState = function () {
-    var s = origRawStore.getState();
-    var statePart = filterOpt(s.state);
-    var dispatchPart = function (subMsg) {
-      s.dispatch(infuseOpt(subMsg));
-    };
-    return {
-            state: statePart,
-            dispatch: dispatchPart,
-            command: s.command,
-            plugins: s.plugins
-          };
-  };
-  var subscribe = function (listener) {
-    var lastRef = {
-      contents: undefined
-    };
-    return origRawStore.subscribe(function (s) {
-                var projected = filterOpt(s.state);
-                var prev = lastRef.contents;
-                var changed;
-                if (prev !== undefined) {
-                  var prev$1 = Caml_option.valFromOption(prev);
-                  changed = prev$1 === projected ? false : !Caml_obj.equal(prev$1, projected);
-                } else {
-                  changed = true;
-                }
-                if (!changed) {
-                  return ;
-                }
-                lastRef.contents = Caml_option.some(projected);
-                var dispatchPart = function (subMsg) {
-                  s.dispatch(infuseOpt(subMsg));
-                };
-                listener({
-                      state: projected,
-                      dispatch: dispatchPart,
-                      command: s.command,
-                      plugins: s.plugins
-                    });
-              });
-  };
-  return {
-          getState: getState,
-          subscribe: subscribe
-        };
-}
 
 function track(useInstance) {
   var useTrackedInstance = function (init) {
@@ -96,7 +34,7 @@ function track(useInstance) {
             rawStore
           ];
   };
-  useTrackedInstance["rawUse"] = useInstance;
+  Helpers.attachRawUse(useTrackedInstance, useInstance);
   return useTrackedInstance;
 }
 
@@ -213,7 +151,7 @@ function brew(config) {
   };
   var rawUseInstance = function (init) {
     var s = ensureStore();
-    var stNow = s.getState();
+    var stNow = Helpers.rawToTypedState(s);
     Js_dict.entries(stNow.plugins).forEach(function (param) {
           $$Plugin.callOnUse(param[1]);
         });
@@ -221,10 +159,8 @@ function brew(config) {
             return st.dispatch;
           }));
     var dispatch = function (msg) {
-      var current = s.getState();
-      Js_dict.entries(current.plugins).forEach(function (param) {
-            $$Plugin.callOnDispatch(param[1], msg);
-          });
+      var current = Helpers.rawToTypedState(s);
+      Helpers.notifyPluginsOnDispatch(current.plugins, msg);
       rawDispatch(msg);
     };
     return [
@@ -238,7 +174,7 @@ function brew(config) {
 
 function pour(useInstanceHook, opts) {
   return function (init) {
-    var rawHookOpt = getRawUse(useInstanceHook);
+    var rawHookOpt = Helpers.getRawUse(useInstanceHook);
     var match;
     if (rawHookOpt !== undefined) {
       var match$1 = rawHookOpt(undefined);
@@ -259,27 +195,7 @@ function pour(useInstanceHook, opts) {
     var parentDispatch = match[1];
     var lastRawRef = React.useRef(undefined);
     var filteredRef = React.useRef(undefined);
-    var r = lastRawRef.current;
-    var filtered;
-    var exit = 0;
-    if (r !== undefined && Caml_obj.equal(Caml_option.valFromOption(r), rawStore)) {
-      var f = filteredRef.current;
-      if (f !== undefined) {
-        filtered = Caml_option.valFromOption(f);
-      } else {
-        var f$1 = makeFilteredStore(rawStore, opts.filter, opts.infuse);
-        filteredRef.current = Caml_option.some(f$1);
-        filtered = f$1;
-      }
-    } else {
-      exit = 1;
-    }
-    if (exit === 1) {
-      var f$2 = makeFilteredStore(rawStore, opts.filter, opts.infuse);
-      lastRawRef.current = Caml_option.some(rawStore);
-      filteredRef.current = Caml_option.some(f$2);
-      filtered = f$2;
-    }
+    var filtered = Helpers.getOrCreateFilteredStore(lastRawRef, filteredRef, rawStore, opts.filter, opts.infuse);
     var useStateFromFiltered = function (selector) {
       return Zustand.useStore(filtered, (function (storeState) {
                     return selector(storeState.state);
@@ -312,9 +228,6 @@ function devtools(prim0, prim1) {
 }
 
 export {
-  getRawUse ,
-  select ,
-  makeFilteredStore ,
   track ,
   brew ,
   pour ,
