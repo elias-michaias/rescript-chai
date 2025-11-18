@@ -20,7 +20,7 @@ let useEffect0 = (f: unit => option<unit => unit>) => React.useEffect0(f)
 
 /* Tracked selector adapter: we expect a function that, given a `useStore`-like
    function, returns a factory for tracked selection usage. The simplest approach
-   is to delegate to `Tracked_.createTrackedSelector` which uses the React
+   is to delegate to `createTrackedSelector` which uses the React
    implementation (proxy-compare + hooks). */
 
 @module("../utils/proxy-react.js")
